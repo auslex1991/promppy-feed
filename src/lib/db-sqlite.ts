@@ -117,6 +117,30 @@ export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
     .all(limit) as RecentItem[];
 }
 
+export async function getItem(id: number): Promise<FeedItem | null> {
+  const d = await getDb();
+  const r = d
+    .prepare(
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+       FROM items WHERE id = ? AND status = 'published'`
+    )
+    .get(id) as
+    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string }
+    | undefined;
+  if (!r) return null;
+  return {
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier,
+    publishedAt: r.published_at,
+  };
+}
+
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   const d = await getDb();
   // Cap each source to PER_SOURCE_CAP items, then take the most-recent `limit`

@@ -109,6 +109,28 @@ export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
   return res.rows as RecentItem[];
 }
 
+export async function getItem(id: number): Promise<FeedItem | null> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+     FROM items WHERE id = $1 AND status = 'published'`,
+    [id]
+  );
+  const r = res.rows[0];
+  if (!r) return null;
+  return {
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier as Tier,
+    publishedAt: new Date(r.published_at).toISOString(),
+  };
+}
+
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   await ensureSchema();
   // Rank each source's items by recency, keep at most PER_SOURCE_CAP per source,

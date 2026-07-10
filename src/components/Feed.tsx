@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem, Tier } from "@/lib/types";
+import CopyLinkButton from "./CopyLinkButton";
 
 const POLL_MS = 45_000;
 // Crawl cadence is hourly (cron-job.org); allow 1.5 intervals + buffer before
@@ -173,6 +174,15 @@ export default function Feed() {
                   >
                     {item.url} ↗
                   </a>
+                  <div className="mt-3 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+                    <CopyLinkButton url={`${window.location.origin}/item/${item.id}`} />
+                    <a
+                      href={`/item/${item.id}`}
+                      className="font-mono-ts text-[12px] text-[#8b949e] hover:text-white hover:underline"
+                    >
+                      상세 페이지 →
+                    </a>
+                  </div>
                 </div>
               )}
             </li>

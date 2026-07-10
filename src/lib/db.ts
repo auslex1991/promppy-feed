@@ -11,6 +11,7 @@ export const getUnclassified = impl.getUnclassified;
 export const getRecentPublished = impl.getRecentPublished;
 export const applyClassification = impl.applyClassification;
 export const getFeed = impl.getFeed;
+export const getItem = impl.getItem;
 export const startRun = impl.startRun;
 export const finishRun = impl.finishRun;
 export const lastSuccessfulRun = impl.lastSuccessfulRun;

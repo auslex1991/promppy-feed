@@ -15,8 +15,24 @@ const sansKr = Noto_Sans_KR({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "https://promppy.com"),
   title: "promppy — 실시간 AI 뉴스",
-  description: "AI 업계 소식을 15분 단위로. 한국 AI 실무자를 위한 실시간 뉴스 터미널.",
+  description:
+    "AI 업계 소식을 실시간으로. 속보·중요·참고 자동 분류와 한 줄 시사점 — 한국 AI 실무자를 위한 뉴스 터미널.",
+  openGraph: {
+    title: "promppy — 실시간 AI 뉴스",
+    description:
+      "AI 업계 소식을 실시간으로. 속보·중요·참고 자동 분류와 한 줄 시사점 — 한국 AI 실무자를 위한 뉴스 터미널.",
+    url: "/",
+    siteName: "promppy",
+    type: "website",
+    locale: "ko_KR",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "promppy — 실시간 AI 뉴스",
+    description: "한국 AI 실무자를 위한 실시간 뉴스 터미널",
+  },
 };
 
 export default function RootLayout({
