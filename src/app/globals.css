@@ -1,26 +1,49 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --bg: #0a0e14;
+  --row-border: #161b22;
+  --text: #c9d1d9;
+  --text-dim: #8b949e;
+  --breaking: #ff4d4f;
+  --important: #ffb020;
+  --reference: #8b949e;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans-kr), "Pretendard", -apple-system, sans-serif;
+}
+
+.font-mono-ts {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+/* New-item arrival: brief highlight flash, then settle (SPEC.md §6) */
+@keyframes item-flash {
+  0% {
+    background-color: rgba(255, 176, 32, 0.14);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.item-new {
+  animation: item-flash 2.5s ease-out 1;
+}
+
+/* LIVE dot pulse */
+@keyframes live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.live-dot {
+  animation: live-pulse 1.6s ease-in-out infinite;
 }
