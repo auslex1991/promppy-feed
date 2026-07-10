@@ -4,7 +4,9 @@ name: crawl
 # crawl cadence (SPEC.md §4). The Vercel cron remains as a daily backstop.
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Off the round :00/:15/:30/:45 marks — those are GitHub's most congested
+    # (and most-dropped) scheduler slots. Best-effort regardless; see README.
+    - cron: "7,22,37,52 * * * *"
   workflow_dispatch:
 
 concurrency:
