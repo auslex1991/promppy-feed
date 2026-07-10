@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { Classification } from "./types";
+import type { Classification, RecentItem } from "./types";
 import { SOURCE_NAMES } from "./sources";
 
 const MODEL = "claude-opus-4-8";
@@ -36,6 +36,9 @@ Tie-breaker: "Would a Korean AI developer want a push-notification-level interru
 
 ### 참고 (Reference) — everything relevant that doesn't meet the bars above: papers with traction, explanatory lab posts, interviews/analysis, funding < $100M, smaller launches, follow-up coverage.
 
+## Duplicate detection (cross-language)
+You are given a list of stories ALREADY in the feed. If the new item covers the SAME underlying news event as one already listed — even in a different language, from a different source, or with a different headline/angle — output action "duplicate" (tier null, headline_ko and why_ko empty strings). Korean outlets routinely re-report or translate English-language stories hours later; such re-coverage IS a duplicate. Two examples of the same story: "OpenAI releases GPT-5.6" and "오픈AI, GPT-5.6 출시". A follow-up that adds SUBSTANTIAL NEW information (new numbers, a new development, a reaction with news value) is NOT a duplicate — publish it. When unsure whether it's genuinely new, prefer "duplicate" for translated re-coverage and "publish" for original reporting.
+
 ## Korean output rules
 - headline_ko: natural Korean headline (not literal machine translation). Keep widely-used product/model names in original form (GPT-5, Claude, Cursor, Llama — never transliterate).
 - why_ko: ONE line, max 80 characters. The IMPLICATION for a Korean AI practitioner — what changes for them, what they should consider doing. NEVER restate the headline. Register example: "기존 GPT-5 대비 입력 토큰 40% 인하. OpenAI API 쓰는 서비스라면 마이그레이션 검토 가치 있음."
@@ -45,7 +48,7 @@ Tie-breaker: "Would a Korean AI developer want a push-notification-level interru
 const OUTPUT_SCHEMA = {
   type: "object" as const,
   properties: {
-    action: { type: "string", enum: ["publish", "skip"] },
+    action: { type: "string", enum: ["publish", "skip", "duplicate"] },
     tier: { anyOf: [{ type: "string", enum: ["속보", "중요", "참고"] }, { type: "null" }] },
     headline_ko: { type: "string" },
     why_ko: { type: "string" },
@@ -60,12 +63,22 @@ function getClient(): Anthropic {
   return client;
 }
 
-export async function classifyItem(input: {
-  sourceId: string;
-  title: string;
-  publishedAt: string;
-  excerpt: string;
-}): Promise<Classification> {
+function formatRecentContext(recent: RecentItem[]): string {
+  if (recent.length === 0) return "(none yet)";
+  return recent
+    .map(
+      (r, i) =>
+        `${i + 1}. [${SOURCE_NAMES[r.source_id] ?? r.source_id}] ${r.headline_ko}${
+          r.title_orig ? ` (원문: ${r.title_orig})` : ""
+        }`
+    )
+    .join("\n");
+}
+
+export async function classifyItem(
+  input: { sourceId: string; title: string; publishedAt: string; excerpt: string },
+  recent: RecentItem[] = []
+): Promise<Classification> {
   const response = await getClient().messages.create({
     model: MODEL,
     max_tokens: 1024,
@@ -74,7 +87,15 @@ export async function classifyItem(input: {
     messages: [
       {
         role: "user",
-        content: `source: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}\npublished: ${input.publishedAt}\nheadline: ${input.title}\nbody (may be truncated):\n${input.excerpt.slice(0, 1500)}`,
+        content: `[stories already in the feed — mark the new item "duplicate" if it covers the same event as any of these]
+${formatRecentContext(recent)}
+
+[new item to classify]
+source: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}
+published: ${input.publishedAt}
+headline: ${input.title}
+body (may be truncated):
+${input.excerpt.slice(0, 1500)}`,
       },
     ],
   });
@@ -85,26 +106,4 @@ export async function classifyItem(input: {
   const text = response.content.find((b) => b.type === "text");
   if (!text || text.type !== "text") throw new Error("no text block in classification response");
   return JSON.parse(text.text) as Classification;
-}
-
-/** Classify a batch with bounded concurrency. Returns [id, Classification|Error] pairs. */
-export async function classifyBatch(
-  rows: Array<{ id: number; sourceId: string; title: string; publishedAt: string; excerpt: string }>,
-  concurrency = 5
-): Promise<Array<{ id: number; result: Classification | Error }>> {
-  const out: Array<{ id: number; result: Classification | Error }> = [];
-  for (let i = 0; i < rows.length; i += concurrency) {
-    const batch = rows.slice(i, i + concurrency);
-    const results = await Promise.all(
-      batch.map(async (r) => {
-        try {
-          return { id: r.id, result: await classifyItem(r) };
-        } catch (e) {
-          return { id: r.id, result: e instanceof Error ? e : new Error(String(e)) };
-        }
-      })
-    );
-    out.push(...results);
-  }
-  return out;
 }

@@ -1,12 +1,21 @@
 import { SOURCES, fetchSource } from "./sources";
-import { insertNewItems, getUnclassified, applyClassification, startRun, finishRun } from "./db";
-import { classifyBatch } from "./classify";
+import {
+  insertNewItems,
+  getUnclassified,
+  getRecentPublished,
+  applyClassification,
+  startRun,
+  finishRun,
+} from "./db";
+import { classifyItem } from "./classify";
+import type { RecentItem } from "./types";
 
 export interface CrawlStats {
   okSources: number;
   failedSources: number;
   newItems: number;
   classified: number;
+  duplicates: number;
   errors: string[];
 }
 
@@ -25,25 +34,30 @@ export async function runCrawl(): Promise<CrawlStats> {
   const inserted = await insertNewItems(results.flatMap((r) => r.items));
 
   // Classify everything still 'new' (includes retries from previously failed runs).
+  // Sequential (not parallel) so cross-language dedup sees items published earlier
+  // in THIS run too — otherwise two same-story items in one crawl both slip through.
   const pending = await getUnclassified();
+  const context: RecentItem[] = await getRecentPublished(80);
   let classified = 0;
-  if (pending.length > 0) {
-    const outcomes = await classifyBatch(
-      pending.map((p) => ({
-        id: p.id,
-        sourceId: p.source_id,
-        title: p.title_orig,
-        publishedAt: p.published_at,
-        excerpt: p.excerpt,
-      }))
-    );
-    for (const o of outcomes) {
-      if (o.result instanceof Error) {
-        errors.push(`classify #${o.id}: ${o.result.message}`);
-      } else {
-        await applyClassification(o.id, o.result);
-        classified++;
-      }
+  let duplicates = 0;
+  for (const p of pending) {
+    let result;
+    try {
+      result = await classifyItem(
+        { sourceId: p.source_id, title: p.title_orig, publishedAt: p.published_at, excerpt: p.excerpt },
+        context
+      );
+    } catch (e) {
+      errors.push(`classify #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
+      continue;
+    }
+    await applyClassification(p.id, result);
+    if (result.action === "publish") {
+      classified++;
+      // Make this item visible to subsequent items in the same run for dedup.
+      context.unshift({ source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
+    } else if (result.action === "duplicate") {
+      duplicates++;
     }
   }
 
@@ -52,6 +66,7 @@ export async function runCrawl(): Promise<CrawlStats> {
     failedSources: results.length - okSources,
     newItems: inserted,
     classified,
+    duplicates,
     errors,
   };
   await finishRun(runId, stats);

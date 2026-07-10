@@ -8,6 +8,7 @@ const impl = process.env.DATABASE_URL ? postgres : sqlite;
 
 export const insertNewItems = impl.insertNewItems;
 export const getUnclassified = impl.getUnclassified;
+export const getRecentPublished = impl.getRecentPublished;
 export const applyClassification = impl.applyClassification;
 export const getFeed = impl.getFeed;
 export const startRun = impl.startRun;

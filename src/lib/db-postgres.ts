@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import type { Classification, FeedItem, RawItem, Tier } from "./types";
+import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
 import { canonicalUrl, normalizeTitle, sha256, PER_SOURCE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 let pool: Pool | null = null;
@@ -87,11 +87,26 @@ export async function getUnclassified(limit = 60): Promise<UnclassifiedRow[]> {
   return res.rows.map((r) => ({ ...r, published_at: new Date(r.published_at).toISOString() }));
 }
 
+function statusFor(action: Classification["action"]): string {
+  return action === "publish" ? "published" : action === "duplicate" ? "duplicate" : "skipped";
+}
+
 export async function applyClassification(id: number, c: Classification): Promise<void> {
   await getPool().query(
     `UPDATE items SET status = $1, tier = $2, headline_ko = $3, why_ko = $4, classified_at = now() WHERE id = $5`,
-    [c.action === "publish" ? "published" : "skipped", c.tier, c.headline_ko || null, c.why_ko || null, id]
+    [statusFor(c.action), c.tier, c.headline_ko || null, c.why_ko || null, id]
   );
+}
+
+export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT source_id, title_orig, headline_ko FROM items
+     WHERE status = 'published' AND published_at > now() - interval '3 days'
+     ORDER BY published_at DESC LIMIT $1`,
+    [limit]
+  );
+  return res.rows as RecentItem[];
 }
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {

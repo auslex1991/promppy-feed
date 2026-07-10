@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type BetterSqlite3 from "better-sqlite3";
-import type { Classification, FeedItem, RawItem, Tier } from "./types";
+import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
 import { canonicalUrl, normalizeTitle, sha256, PER_SOURCE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 // Local-dev backend. Loaded lazily so production builds (Postgres path) never
@@ -93,16 +93,28 @@ export async function getUnclassified(limit = 60): Promise<UnclassifiedRow[]> {
 
 export async function applyClassification(id: number, c: Classification): Promise<void> {
   const d = await getDb();
+  const status = c.action === "publish" ? "published" : c.action === "duplicate" ? "duplicate" : "skipped";
   d.prepare(
     `UPDATE items SET status = @status, tier = @tier, headline_ko = @headline,
      why_ko = @why, classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
   ).run({
     id,
-    status: c.action === "publish" ? "published" : "skipped",
+    status,
     tier: c.tier,
     headline: c.headline_ko || null,
     why: c.why_ko || null,
   });
+}
+
+export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
+  const d = await getDb();
+  return d
+    .prepare(
+      `SELECT source_id, title_orig, headline_ko FROM items
+       WHERE status = 'published' AND published_at > datetime('now', '-3 days')
+       ORDER BY published_at DESC LIMIT ?`
+    )
+    .all(limit) as RecentItem[];
 }
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {

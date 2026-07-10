@@ -18,10 +18,17 @@ export interface SourceResult {
 }
 
 export interface Classification {
-  action: "publish" | "skip";
+  action: "publish" | "skip" | "duplicate";
   tier: Tier | null;
   headline_ko: string;
   why_ko: string;
+}
+
+/** Compact recently-published context passed to the classifier for cross-language dedup. */
+export interface RecentItem {
+  source_id: string;
+  title_orig: string;
+  headline_ko: string;
 }
 
 /** Row shape served to the frontend. */
