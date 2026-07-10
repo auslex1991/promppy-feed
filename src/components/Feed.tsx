@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem, Tier } from "@/lib/types";
 
 const POLL_MS = 45_000;
-const STALE_MS = 45 * 60_000; // freshness indicator degrades after 45 min (SPEC.md §4)
+// Crawl cadence is hourly (cron-job.org); allow 1.5 intervals + buffer before
+// the LIVE indicator degrades, so a healthy hourly schedule never shows 지연.
+const STALE_MS = 95 * 60_000;
 
 const TIER_STYLE: Record<Tier, { badge: string; accent: string }> = {
   속보: { badge: "bg-[#ff4d4f]/15 text-[#ff4d4f] border-[#ff4d4f]/40", accent: "border-l-[#ff4d4f]" },
