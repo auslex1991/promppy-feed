@@ -25,6 +25,11 @@ export function normalizeTitle(t: string): string {
   return t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
+// No single source may occupy more than this many slots in the rendered feed.
+// AI타임스 and TechCrunch are high-volume and would otherwise dominate; this
+// caps display share independent of per-source publish rate.
+export const PER_SOURCE_CAP = 10;
+
 export interface UnclassifiedRow {
   id: number;
   source_id: string;

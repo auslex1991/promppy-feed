@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type BetterSqlite3 from "better-sqlite3";
 import type { Classification, FeedItem, RawItem, Tier } from "./types";
-import { canonicalUrl, normalizeTitle, sha256, type RunStats, type UnclassifiedRow } from "./db-shared";
+import { canonicalUrl, normalizeTitle, sha256, PER_SOURCE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 // Local-dev backend. Loaded lazily so production builds (Postgres path) never
 // touch the native better-sqlite3 binding.
@@ -107,12 +107,19 @@ export async function applyClassification(id: number, c: Classification): Promis
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   const d = await getDb();
+  // Cap each source to PER_SOURCE_CAP items, then take the most-recent `limit`
+  // of what remains (display fairness — see db-shared.ts).
   const rows = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
-       FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT ?`
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at FROM (
+         SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at,
+                ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY published_at DESC) AS rn
+         FROM items WHERE status = 'published'
+       ) ranked
+       WHERE rn <= ?
+       ORDER BY published_at DESC LIMIT ?`
     )
-    .all(limit) as Array<{
+    .all(PER_SOURCE_CAP, limit) as Array<{
     id: number;
     source_id: string;
     url: string;

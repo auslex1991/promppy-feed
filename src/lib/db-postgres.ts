@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import type { Classification, FeedItem, RawItem, Tier } from "./types";
-import { canonicalUrl, normalizeTitle, sha256, type RunStats, type UnclassifiedRow } from "./db-shared";
+import { canonicalUrl, normalizeTitle, sha256, PER_SOURCE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -96,10 +96,18 @@ export async function applyClassification(id: number, c: Classification): Promis
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   await ensureSchema();
+  // Rank each source's items by recency, keep at most PER_SOURCE_CAP per source,
+  // then take the most-recent `limit` of what remains — display fairness so no
+  // single high-volume source dominates.
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
-     FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT $1`,
-    [limit]
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at FROM (
+       SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at,
+              ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY published_at DESC) AS rn
+       FROM items WHERE status = 'published'
+     ) ranked
+     WHERE rn <= $1
+     ORDER BY published_at DESC LIMIT $2`,
+    [PER_SOURCE_CAP, limit]
   );
   return res.rows.map((r) => ({
     id: r.id,
