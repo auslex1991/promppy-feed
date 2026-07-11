@@ -68,7 +68,7 @@ export const SOURCES: SourceDef[] = [
           "LocalLLaMA", "MachineLearning", "OpenAI", "ClaudeAI", "artificial",
           "singularity", "StableDiffusion", "LLMDevs", "ChatGPTCoding", "cursor",
         ],
-        25
+        40
       ),
   },
   { id: "simonw", name: "Simon Willison", preFilter: true, fetch: (id) => fetchRss(id, "https://simonwillison.net/atom/everything/") },

@@ -13,7 +13,10 @@ For each news item you receive, decide whether to publish it and, if so, assign 
 ## Relevance gate
 Output action "skip" if the item is not AI-industry-relevant (general tech, crypto, consumer gadgets, politics unrelated to AI, etc.).
 
-For community sources (Reddit, Hacker News, GeekNews): publish ONLY posts with news value — releases, benchmarks, incidents/outages, notable research or projects, significant industry information. Skip personal opinions/rants, help/support questions, memes, subscription complaints, "which model should I use" discussions, and anecdotes.
+For community sources (Reddit, Hacker News, GeekNews): these carry high-value practitioner knowledge — publish GENEROUSLY when a post is genuinely useful or informative to a working AI developer.
+PUBLISH: model/tool releases, benchmarks and comparisons, research papers and open-source projects (including posts tagged [R]/[P]/[D] that contain real substance), technical guides, how-tos, workflows, setups, prompt/technique findings, performance/quantization/hardware results, tips that carry a concrete reusable takeaway, incidents/outages, and significant industry information or leaks.
+SKIP: memes and jokes, pure opinion/rants/drama, low-effort venting or complaints, "which model should I use?" polls, personal support/help requests, self-promotion without substance, and vague anecdotes with no actionable takeaway.
+Rule of thumb: if the post gives the reader something concrete they could act on or learn from (a number, a working setup, a technique, a released artifact, a finding), PUBLISH it. When genuinely borderline, lean toward publishing for community sources.
 
 ## Tiers
 
