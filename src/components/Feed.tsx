@@ -92,7 +92,7 @@ export default function Feed() {
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#161b22] bg-[#0a0e14]/95 py-3 backdrop-blur">
         <h1 className="shrink font-mono-ts text-lg font-bold tracking-tight text-white">
           promppy<span className="text-[#ffb020]">_</span>
-          <span className="ml-2 hidden text-xs font-normal text-[#8b949e] sm:inline">
+          <span className="ml-2 whitespace-nowrap text-xs font-normal text-[#8b949e]">
             실시간 AI 뉴스
           </span>
         </h1>
@@ -191,7 +191,7 @@ export default function Feed() {
       </ol>
 
       <footer className="py-6 text-center font-mono-ts text-[11px] text-[#8b949e]/50">
-        15분마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다
+        1시간마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다
       </footer>
     </div>
   );
