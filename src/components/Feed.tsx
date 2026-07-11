@@ -47,10 +47,20 @@ interface FeedPayload {
   serverNow: string;
 }
 
+type Filter = "all" | Tier;
+const FILTERS: Filter[] = ["all", "속보", "중요", "참고"];
+const FILTER_LABEL: Record<Filter, string> = {
+  all: "전체",
+  속보: "속보",
+  중요: "중요",
+  참고: "참고",
+};
+
 export default function Feed() {
   const [data, setData] = useState<FeedPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [filter, setFilter] = useState<Filter>("all");
   const [now, setNow] = useState(() => Date.now());
   const knownIds = useRef<Set<number>>(new Set());
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
@@ -87,6 +97,15 @@ export default function Feed() {
   const lastCrawl = data?.lastCrawlAt ? new Date(data.lastCrawlAt).getTime() : null;
   const isLive = lastCrawl !== null && now - lastCrawl < STALE_MS;
 
+  const items = data?.items ?? [];
+  const counts: Record<Filter, number> = {
+    all: items.length,
+    속보: items.filter((i) => i.tier === "속보").length,
+    중요: items.filter((i) => i.tier === "중요").length,
+    참고: items.filter((i) => i.tier === "참고").length,
+  };
+  const shown = filter === "all" ? items : items.filter((i) => i.tier === filter);
+
   return (
     <div className="mx-auto max-w-4xl px-3 sm:px-6">
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#161b22] bg-[#0a0e14]/95 py-3 backdrop-blur">
@@ -114,6 +133,27 @@ export default function Feed() {
         </div>
       </header>
 
+      <nav className="sticky top-[49px] z-10 flex gap-1 border-b border-[#161b22] bg-[#0a0e14]/95 py-2 backdrop-blur">
+        {FILTERS.map((f) => {
+          const active = filter === f;
+          const accent =
+            f === "속보" ? "#ff4d4f" : f === "중요" ? "#ffb020" : f === "참고" ? "#8b949e" : "#e6edf3";
+          return (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-full px-3 py-1 font-mono-ts text-xs transition-colors ${
+                active ? "bg-white/10 text-white" : "text-[#8b949e] hover:bg-white/[0.04] hover:text-[#c9d1d9]"
+              }`}
+              style={active ? { boxShadow: `inset 0 -2px 0 ${accent}` } : undefined}
+            >
+              {FILTER_LABEL[f]}
+              <span className="ml-1.5 text-[#8b949e]/70">{counts[f]}</span>
+            </button>
+          );
+        })}
+      </nav>
+
       {error && (
         <p className="py-4 font-mono-ts text-sm text-[#ff4d4f]">피드 로딩 실패: {error}</p>
       )}
@@ -124,8 +164,14 @@ export default function Feed() {
         </p>
       )}
 
+      {data && data.items.length > 0 && shown.length === 0 && (
+        <p className="py-12 text-center text-sm text-[#8b949e]">
+          현재 <span className="text-[#c9d1d9]">{FILTER_LABEL[filter]}</span> 등급 뉴스가 없습니다.
+        </p>
+      )}
+
       <ol>
-        {data?.items.map((item) => {
+        {shown.map((item) => {
           const style = TIER_STYLE[item.tier] ?? TIER_STYLE["참고"];
           const isExpanded = expanded === item.id;
           return (
