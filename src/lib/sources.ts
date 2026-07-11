@@ -61,7 +61,15 @@ export const SOURCES: SourceDef[] = [
   { id: "hn", name: "Hacker News", fetch: (id) => fetchHackerNews(id) },
   {
     id: "reddit", name: "Reddit",
-    fetch: (id) => fetchReddit(id, ["LocalLLaMA", "MachineLearning", "OpenAI", "ClaudeAI", "artificial"]),
+    fetch: (id) =>
+      fetchReddit(
+        id,
+        [
+          "LocalLLaMA", "MachineLearning", "OpenAI", "ClaudeAI", "artificial",
+          "singularity", "StableDiffusion", "LLMDevs", "ChatGPTCoding", "cursor",
+        ],
+        25
+      ),
   },
   { id: "simonw", name: "Simon Willison", preFilter: true, fetch: (id) => fetchRss(id, "https://simonwillison.net/atom/everything/") },
   { id: "hf-blog", name: "HF Blog", fetch: (id) => fetchRss(id, "https://huggingface.co/blog/feed.xml") },

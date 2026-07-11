@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type BetterSqlite3 from "better-sqlite3";
 import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
-import { canonicalUrl, normalizeTitle, sha256, PER_SOURCE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
+import { canonicalUrl, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 // Local-dev backend. Loaded lazily so production builds (Postgres path) never
 // touch the native better-sqlite3 binding.
@@ -143,19 +143,14 @@ export async function getItem(id: number): Promise<FeedItem | null> {
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   const d = await getDb();
-  // Cap each source to PER_SOURCE_CAP items, then take the most-recent `limit`
-  // of what remains (display fairness — see db-shared.ts).
+  // Recency-sorted candidate pool with headroom; caps + interleaving in
+  // arrangeFeed (db-shared.ts).
   const rows = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at FROM (
-         SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at,
-                ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY published_at DESC) AS rn
-         FROM items WHERE status = 'published'
-       ) ranked
-       WHERE rn <= ?
-       ORDER BY published_at DESC LIMIT ?`
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+       FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT ?`
     )
-    .all(PER_SOURCE_CAP, limit) as Array<{
+    .all(limit * 4) as Array<{
     id: number;
     source_id: string;
     url: string;
@@ -165,17 +160,20 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
     tier: Tier;
     published_at: string;
   }>;
-  return rows.map((r) => ({
-    id: r.id,
-    sourceId: r.source_id,
-    sourceName: r.source_id,
-    url: r.url,
-    titleOrig: r.title_orig,
-    headlineKo: r.headline_ko,
-    whyKo: r.why_ko,
-    tier: r.tier,
-    publishedAt: r.published_at,
-  }));
+  return arrangeFeed(
+    rows.map((r) => ({
+      id: r.id,
+      sourceId: r.source_id,
+      sourceName: r.source_id,
+      url: r.url,
+      titleOrig: r.title_orig,
+      headlineKo: r.headline_ko,
+      whyKo: r.why_ko,
+      tier: r.tier,
+      publishedAt: r.published_at,
+    })),
+    limit
+  );
 }
 
 export async function startRun(): Promise<number> {

@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
-import { canonicalUrl, normalizeTitle, sha256, PER_SOURCE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
+import { canonicalUrl, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -133,20 +133,14 @@ export async function getItem(id: number): Promise<FeedItem | null> {
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   await ensureSchema();
-  // Rank each source's items by recency, keep at most PER_SOURCE_CAP per source,
-  // then take the most-recent `limit` of what remains — display fairness so no
-  // single high-volume source dominates.
+  // Fetch a recency-sorted candidate pool with headroom; per-source caps and
+  // no-consecutive-source interleaving happen in arrangeFeed (db-shared.ts).
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at FROM (
-       SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at,
-              ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY published_at DESC) AS rn
-       FROM items WHERE status = 'published'
-     ) ranked
-     WHERE rn <= $1
-     ORDER BY published_at DESC LIMIT $2`,
-    [PER_SOURCE_CAP, limit]
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+     FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT $1`,
+    [limit * 4]
   );
-  return res.rows.map((r) => ({
+  const rows: FeedItem[] = res.rows.map((r) => ({
     id: r.id,
     sourceId: r.source_id,
     sourceName: r.source_id,
@@ -157,6 +151,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
     tier: r.tier as Tier,
     publishedAt: new Date(r.published_at).toISOString(),
   }));
+  return arrangeFeed(rows, limit);
 }
 
 export async function startRun(): Promise<number> {
