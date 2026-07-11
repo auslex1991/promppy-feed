@@ -176,6 +176,39 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
   );
 }
 
+// Load-more pagination: strictly-older items, plain reverse-chronological.
+// ISO-8601 strings compare lexicographically in the same order as time.
+export async function getFeedBefore(beforeIso: string, limit = 50): Promise<FeedItem[]> {
+  const d = await getDb();
+  const rows = d
+    .prepare(
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+       FROM items WHERE status = 'published' AND published_at < ?
+       ORDER BY published_at DESC LIMIT ?`
+    )
+    .all(beforeIso, limit) as Array<{
+    id: number;
+    source_id: string;
+    url: string;
+    title_orig: string;
+    headline_ko: string;
+    why_ko: string;
+    tier: Tier;
+    published_at: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier,
+    publishedAt: r.published_at,
+  }));
+}
+
 export async function startRun(): Promise<number> {
   const d = await getDb();
   const res = d

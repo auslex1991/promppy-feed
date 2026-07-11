@@ -154,6 +154,29 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
   return arrangeFeed(rows, limit);
 }
 
+// Load-more pagination: strictly-older items in plain reverse-chronological
+// order (no caps/interleave — that's a front-page presentation concern).
+export async function getFeedBefore(beforeIso: string, limit = 50): Promise<FeedItem[]> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+     FROM items WHERE status = 'published' AND published_at < $1
+     ORDER BY published_at DESC LIMIT $2`,
+    [beforeIso, limit]
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier as Tier,
+    publishedAt: new Date(r.published_at).toISOString(),
+  }));
+}
+
 export async function startRun(): Promise<number> {
   await ensureSchema();
   const res = await getPool().query(`INSERT INTO crawl_runs (started_at) VALUES (now()) RETURNING id`);

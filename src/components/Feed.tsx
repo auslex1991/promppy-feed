@@ -65,6 +65,9 @@ export default function Feed() {
   const knownIds = useRef<Set<number>>(new Set());
   const [newIds, setNewIds] = useState<Set<number>>(new Set());
   const firstLoad = useRef(true);
+  const [older, setOlder] = useState<FeedItem[]>([]);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
 
   const load = useCallback(async () => {
     try {
@@ -83,6 +86,27 @@ export default function Feed() {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    const loaded = [...(data?.items ?? []), ...older];
+    if (loaded.length === 0) return;
+    const cursor = loaded.reduce((m, i) => (i.publishedAt < m ? i.publishedAt : m), loaded[0].publishedAt);
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/feed?before=${encodeURIComponent(cursor)}`, { cache: "no-store" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const payload = (await res.json()) as { items: FeedItem[]; hasMore: boolean };
+      const seen = new Set([...(data?.items ?? []).map((i) => i.id), ...older.map((i) => i.id)]);
+      const fresh = payload.items.filter((i) => !seen.has(i.id));
+      fresh.forEach((i) => knownIds.current.add(i.id));
+      setOlder((prev) => [...prev, ...fresh]);
+      setHasMore(payload.hasMore);
+    } catch {
+      // leave the button in place so the user can retry
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [data, older]);
 
   useEffect(() => {
     load();
@@ -105,6 +129,13 @@ export default function Feed() {
     참고: items.filter((i) => i.tier === "참고").length,
   };
   const shown = filter === "all" ? items : items.filter((i) => i.tier === filter);
+
+  // Older (load-more) items, deduped against the front page, then tier-filtered.
+  const frontIds = new Set(items.map((i) => i.id));
+  const olderShown = older
+    .filter((o) => !frontIds.has(o.id))
+    .filter((i) => filter === "all" || i.tier === filter);
+  const combined = [...shown, ...olderShown];
 
   return (
     <div className="mx-auto max-w-4xl px-3 sm:px-6">
@@ -164,14 +195,14 @@ export default function Feed() {
         </p>
       )}
 
-      {data && data.items.length > 0 && shown.length === 0 && (
+      {data && data.items.length > 0 && combined.length === 0 && (
         <p className="py-12 text-center text-sm text-[#8b949e]">
           현재 <span className="text-[#c9d1d9]">{FILTER_LABEL[filter]}</span> 등급 뉴스가 없습니다.
         </p>
       )}
 
       <ol>
-        {shown.map((item) => {
+        {combined.map((item) => {
           const style = TIER_STYLE[item.tier] ?? TIER_STYLE["참고"];
           const isExpanded = expanded === item.id;
           return (
@@ -235,6 +266,18 @@ export default function Feed() {
           );
         })}
       </ol>
+
+      {data && data.items.length > 0 && hasMore && (
+        <div className="py-6 text-center">
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="rounded border border-[#30363d] px-5 py-2 font-mono-ts text-xs text-[#c9d1d9] transition-colors hover:border-[#8b949e] hover:text-white disabled:opacity-50"
+          >
+            {loadingMore ? "불러오는 중…" : "더 보기 ↓"}
+          </button>
+        </div>
+      )}
 
       <footer className="py-6 text-center font-mono-ts text-[11px] text-[#8b949e]/50">
         1시간마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다
