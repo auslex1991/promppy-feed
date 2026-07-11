@@ -147,19 +147,29 @@ export default function Feed() {
           </span>
         </h1>
         <div className="flex shrink-0 items-center gap-2 font-mono-ts text-xs">
-          <span
-            className={`inline-block h-2 w-2 rounded-full ${
-              isLive ? "live-dot bg-[#3fb950]" : "bg-[#ffb020]"
-            }`}
-          />
-          <span className={isLive ? "text-[#3fb950]" : "text-[#ffb020]"}>
-            {isLive ? "LIVE" : "지연"}
-          </span>
-          {lastCrawl && (
-            <span className="text-[#8b949e]" suppressHydrationWarning>
-              {relative(data!.lastCrawlAt!, now)}
-              <span className="hidden sm:inline"> 업데이트</span>
-            </span>
+          {!data && !error ? (
+            // Initial load — neutral, not the amber "지연" (which means stale).
+            <>
+              <span className="live-dot inline-block h-2 w-2 rounded-full bg-[#8b949e]" />
+              <span className="text-[#8b949e]">연결 중</span>
+            </>
+          ) : (
+            <>
+              <span
+                className={`inline-block h-2 w-2 rounded-full ${
+                  isLive ? "live-dot bg-[#3fb950]" : "bg-[#ffb020]"
+                }`}
+              />
+              <span className={isLive ? "text-[#3fb950]" : "text-[#ffb020]"}>
+                {isLive ? "LIVE" : "지연"}
+              </span>
+              {lastCrawl && (
+                <span className="text-[#8b949e]" suppressHydrationWarning>
+                  {relative(data!.lastCrawlAt!, now)}
+                  <span className="hidden sm:inline"> 업데이트</span>
+                </span>
+              )}
+            </>
           )}
         </div>
       </header>
@@ -184,6 +194,21 @@ export default function Feed() {
           );
         })}
       </nav>
+
+      {!data && !error && (
+        <ol aria-hidden className="animate-pulse">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <li key={i} className="border-b border-[#161b22] border-l-2 border-l-[#161b22] px-3 py-2.5">
+              <div className="flex items-center gap-3">
+                <div className="h-3 w-16 rounded bg-[#161b22]" />
+                <div className="h-4 w-10 rounded bg-[#161b22]" />
+                <div className="h-4 rounded bg-[#161b22]" style={{ width: `${45 + ((i * 7) % 35)}%` }} />
+              </div>
+              <div className="mt-2 h-3 w-2/3 rounded bg-[#161b22] sm:ml-[76px]" />
+            </li>
+          ))}
+        </ol>
+      )}
 
       {error && (
         <p className="py-4 font-mono-ts text-sm text-[#ff4d4f]">피드 로딩 실패: {error}</p>
