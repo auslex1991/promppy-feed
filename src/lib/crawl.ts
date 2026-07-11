@@ -7,13 +7,17 @@ import {
   startRun,
   finishRun,
 } from "./db";
-import { classifyItem } from "./classify";
-import type { RecentItem } from "./types";
+import { classifyItem, gateItem } from "./classify";
+import { fetchArticleText } from "./adapters/article";
+import type { Classification, RecentItem } from "./types";
+
+const SKIP: Classification = { action: "skip", tier: null, headline_ko: "", why_ko: "" };
 
 export interface CrawlStats {
   okSources: number;
   failedSources: number;
   newItems: number;
+  gatedOut: number;
   classified: number;
   duplicates: number;
   errors: string[];
@@ -37,27 +41,41 @@ export async function runCrawl(): Promise<CrawlStats> {
   // Sequential (not parallel) so cross-language dedup sees items published earlier
   // in THIS run too — otherwise two same-story items in one crawl both slip through.
   const pending = await getUnclassified();
-  const context: RecentItem[] = await getRecentPublished(80);
+  const context: RecentItem[] = await getRecentPublished(40);
+  let gatedOut = 0;
   let classified = 0;
   let duplicates = 0;
   for (const p of pending) {
-    let result;
     try {
-      result = await classifyItem(
-        { sourceId: p.source_id, title: p.title_orig, publishedAt: p.published_at, excerpt: p.excerpt },
+      // Enrich empty-excerpt items (scraped blogs, HF Blog) with article text
+      // so both the gate and the summary judge from body, not just a headline.
+      let excerpt = p.excerpt;
+      if (!excerpt.trim()) {
+        excerpt = await fetchArticleText(p.url);
+      }
+
+      // Stage 1 — cheap Haiku relevance gate (no dedup context).
+      const keep = await gateItem({ sourceId: p.source_id, title: p.title_orig, excerpt });
+      if (!keep) {
+        await applyClassification(p.id, SKIP);
+        gatedOut++;
+        continue;
+      }
+
+      // Stage 2 — Opus finalize: tier + Korean summary + cross-language dedup.
+      const result = await classifyItem(
+        { sourceId: p.source_id, title: p.title_orig, publishedAt: p.published_at, excerpt },
         context
       );
+      await applyClassification(p.id, result);
+      if (result.action === "publish") {
+        classified++;
+        context.unshift({ source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
+      } else if (result.action === "duplicate") {
+        duplicates++;
+      }
     } catch (e) {
       errors.push(`classify #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
-      continue;
-    }
-    await applyClassification(p.id, result);
-    if (result.action === "publish") {
-      classified++;
-      // Make this item visible to subsequent items in the same run for dedup.
-      context.unshift({ source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
-    } else if (result.action === "duplicate") {
-      duplicates++;
     }
   }
 
@@ -65,6 +83,7 @@ export async function runCrawl(): Promise<CrawlStats> {
     okSources,
     failedSources: results.length - okSources,
     newItems: inserted,
+    gatedOut,
     classified,
     duplicates,
     errors,

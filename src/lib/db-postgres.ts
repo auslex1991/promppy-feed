@@ -80,7 +80,7 @@ export async function insertNewItems(items: RawItem[]): Promise<number> {
 export async function getUnclassified(limit = 60): Promise<UnclassifiedRow[]> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT id, source_id, title_orig, excerpt, published_at FROM items
+    `SELECT id, source_id, url, title_orig, excerpt, published_at FROM items
      WHERE status = 'new' ORDER BY published_at DESC LIMIT $1`,
     [limit]
   );

@@ -23,7 +23,7 @@ Highest authority; these win deduplication against media coverage of the same st
 | 4 | Google — The Keyword (AI) | https://blog.google/technology/ai/ | RSS: `https://blog.google/technology/ai/rss/` ✅ | 5–8/week | Google's product-side AI announcements (Gemini launches land here). Overlaps DeepMind occasionally — dedup handles it. |
 | 5 | Meta AI Blog | https://ai.meta.com/blog/ | **Scrape** (RSS paths all 404 as of 2026-07-10) | 1–3/week | Llama releases, FAIR research. |
 | 6 | Mistral AI News | https://mistral.ai/news/ | **Scrape** (no reliable RSS) | 1–2/week | Low volume, high signal for open-weights releases. |
-| 7 | xAI News | https://x.ai/news | **Scrape** | ~1/week | Grok releases. Low volume; cheap to include. |
+| ~~7~~ | ~~xAI News~~ | https://x.ai/news | **Dropped 2026-07-12** | — | Scrape 403s from datacenter IPs on every production crawl (works locally only). Grok news arrives via TechCrunch/Reddit. Removed to keep the crawl error log meaningful. |
 
 ## Group B — Tier-1 tech media, AI sections (3)
 

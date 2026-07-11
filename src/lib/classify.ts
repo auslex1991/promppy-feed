@@ -2,6 +2,9 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Classification, RecentItem } from "./types";
 import { SOURCE_NAMES } from "./sources";
 
+// Two-stage: a cheap Haiku relevance gate filters obvious skips (no dedup
+// context) before the expensive Opus call writes the tier + Korean summary.
+const GATE_MODEL = "claude-haiku-4-5";
 const MODEL = "claude-opus-4-8";
 
 // SPEC.md §3 rubric, verbatim intent. Static so prompt caching holds across the
@@ -27,6 +30,7 @@ Rule of thumb: if the post gives the reader something concrete they could act on
 4. Regulation with immediate binding effect (US, EU, KR) changing what AI developers/companies may legally do.
 5. Major API pricing/access change forcing practitioners to act.
 Tie-breaker: "Would a Korean AI developer want a push-notification-level interrupt for this?" If no → 중요 at most.
+Same-event clustering: when several items describe ONE launch event (a flagship model release plus its demos, variants, or minor sub-announcements), assign 속보 to only the single primary/flagship item. Mark the satellites as "duplicate" if they add nothing, or demote them to 중요/참고 if they carry independent value. Never stack multiple 속보 rows for one event.
 
 ### 중요 (Important) — worth reading today; changes what a practitioner might do this week. Qualifies if ANY of:
 1. Non-flagship model releases: minor versions, open-weights releases, notable fine-tunes from major labs or top open-source orgs (Mistral, Qwen, DeepSeek).
@@ -66,16 +70,61 @@ function getClient(): Anthropic {
   return client;
 }
 
+// Korean headline only — the model matches cross-language dupes against the
+// new item's own original title, so carrying each entry's English title too is
+// redundant token weight. Kept compact to control per-call cost.
 function formatRecentContext(recent: RecentItem[]): string {
   if (recent.length === 0) return "(none yet)";
   return recent
-    .map(
-      (r, i) =>
-        `${i + 1}. [${SOURCE_NAMES[r.source_id] ?? r.source_id}] ${r.headline_ko}${
-          r.title_orig ? ` (원문: ${r.title_orig})` : ""
-        }`
-    )
+    .map((r, i) => `${i + 1}. [${SOURCE_NAMES[r.source_id] ?? r.source_id}] ${r.headline_ko}`)
     .join("\n");
+}
+
+const GATE_PROMPT = `You are a relevance filter for a Korean AI-news feed read by working AI developers. For each item, decide whether it is worth full classification.
+
+keep=false (drop) if: NOT AI-industry-relevant (general tech, crypto, consumer gadgets, politics unrelated to AI); OR — for community sources (Reddit, Hacker News, GeekNews) — it is a meme/joke, pure opinion/rant/drama, low-effort venting or complaint, "which model should I use?" poll, personal support/help request, self-promotion without substance, or a vague anecdote with no actionable takeaway.
+
+keep=true if it is a genuine AI-industry item: model/tool releases, benchmarks, research or open-source projects, guides/how-tos/tips with a concrete takeaway, funding, incidents/outages, industry information or leaks, or Korean AI industry news.
+
+When borderline, keep=true — a later step makes the final judgment.`;
+
+const GATE_SCHEMA = {
+  type: "object" as const,
+  properties: { keep: { type: "boolean" } },
+  required: ["keep"],
+  additionalProperties: false,
+};
+
+/**
+ * Stage 1: cheap Haiku relevance gate. No dedup context, minimal output — used
+ * to drop obvious skips before the expensive Opus finalize call. Fails open
+ * (keep=true) so a gate error never silently loses a real item.
+ */
+export async function gateItem(input: {
+  sourceId: string;
+  title: string;
+  excerpt: string;
+}): Promise<boolean> {
+  try {
+    const response = await getClient().messages.create({
+      model: GATE_MODEL,
+      max_tokens: 16,
+      system: GATE_PROMPT,
+      output_config: { format: { type: "json_schema", schema: GATE_SCHEMA } },
+      messages: [
+        {
+          role: "user",
+          content: `source: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}\ntitle: ${input.title}\n${input.excerpt.slice(0, 600)}`,
+        },
+      ],
+    });
+    if (response.stop_reason === "refusal") return true;
+    const text = response.content.find((b) => b.type === "text");
+    if (!text || text.type !== "text") return true;
+    return (JSON.parse(text.text) as { keep: boolean }).keep;
+  } catch {
+    return true; // fail open — let stage 2 decide rather than drop silently
+  }
 }
 
 export async function classifyItem(

@@ -85,7 +85,7 @@ export async function getUnclassified(limit = 60): Promise<UnclassifiedRow[]> {
   const d = await getDb();
   return d
     .prepare(
-      `SELECT id, source_id, title_orig, excerpt, published_at
+      `SELECT id, source_id, url, title_orig, excerpt, published_at
        FROM items WHERE status = 'new' ORDER BY published_at DESC LIMIT ?`
     )
     .all(limit) as UnclassifiedRow[];

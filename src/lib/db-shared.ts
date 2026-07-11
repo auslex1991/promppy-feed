@@ -76,6 +76,7 @@ export function arrangeFeed<T extends { sourceId: string }>(rows: T[], limit: nu
 export interface UnclassifiedRow {
   id: number;
   source_id: string;
+  url: string;
   title_orig: string;
   excerpt: string;
   published_at: string;

@@ -42,13 +42,9 @@ export const SOURCES: SourceDef[] = [
       linkSelector: "a[href*='/news/']", hrefPattern: /\/news\/.+/,
     }),
   },
-  {
-    id: "xai", name: "xAI",
-    fetch: (id) => fetchScrape(id, {
-      pageUrl: "https://x.ai/news", baseUrl: "https://x.ai",
-      linkSelector: "a[href*='/news/']", hrefPattern: /\/news\/.+/,
-    }),
-  },
+  // xAI (x.ai/news) dropped 2026-07-12: its scrape 403s from datacenter IPs on
+  // every production crawl (works locally only). Grok news arrives via
+  // TechCrunch/Reddit; keeping it only polluted the crawl error log.
   // Group B — tier-1 media & AI publications
   { id: "techcrunch", name: "TechCrunch", fetch: (id) => fetchRss(id, "https://techcrunch.com/category/artificial-intelligence/feed/") },
   { id: "verge", name: "The Verge", fetch: (id) => fetchRss(id, "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml") },
