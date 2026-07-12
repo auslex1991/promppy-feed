@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getItem } from "@/lib/db";
+import { getDupCoverage, getItem, getLatestPublished } from "@/lib/db";
 import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR, kstDate } from "@/lib/site";
 import CopyLinkButton from "@/components/CopyLinkButton";
@@ -46,6 +46,7 @@ export default async function ItemPage({ params }: Props) {
   const item = await loadItem(id);
   if (!item) notFound();
 
+  const [dups, latest] = await Promise.all([getDupCoverage(item.id), getLatestPublished(item.id, 5)]);
   const color = TIER_COLOR[item.tier] ?? TIER_COLOR["참고"];
   const sourceName = SOURCE_NAMES[item.sourceId] ?? item.sourceId;
 
@@ -94,6 +95,50 @@ export default async function ItemPage({ params }: Props) {
           <CopyLinkButton url={`${SITE_URL}/item/${item.id}`} />
         </div>
       </article>
+
+      {dups.length > 0 && (
+        <section className="mt-8">
+          <h2 className="font-mono-ts text-xs font-semibold text-[#8b949e]">다른 매체 보도</h2>
+          <ul className="mt-2 space-y-1.5">
+            {dups.map((d) => (
+              <li key={d.url} className="text-[13px]">
+                <a
+                  href={d.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[#c9d1d9] hover:text-white hover:underline"
+                >
+                  <span className="font-mono-ts text-[11px] text-[#8b949e]">
+                    [{SOURCE_NAMES[d.sourceId] ?? d.sourceId}]
+                  </span>{" "}
+                  {d.titleOrig} ↗
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {latest.length > 0 && (
+        <section className="mt-8">
+          <h2 className="font-mono-ts text-xs font-semibold text-[#8b949e]">최신 뉴스</h2>
+          <ul className="mt-2 space-y-1.5">
+            {latest.map((l) => (
+              <li key={l.id} className="text-[13px]">
+                <Link href={`/item/${l.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
+                  <span
+                    className="mr-1.5 font-mono-ts text-[11px]"
+                    style={{ color: TIER_COLOR[l.tier] ?? TIER_COLOR["참고"] }}
+                  >
+                    [{l.tier}]
+                  </span>
+                  {l.headlineKo}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <p className="mt-8 text-center">
         <Link

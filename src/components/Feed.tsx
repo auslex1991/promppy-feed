@@ -3,6 +3,7 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem, FeedPayload, Tier } from "@/lib/types";
 import CopyLinkButton from "./CopyLinkButton";
+import FeedbackButton from "./FeedbackButton";
 
 const POLL_MS = 45_000;
 // Crawl cadence is hourly (cron-job.org); allow 1.5 intervals + buffer before
@@ -88,6 +89,20 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
   const pendingRef = useRef<FeedPayload | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [cursor, setCursor] = useState(-1); // keyboard-nav row index
+  // "여기까지 읽음": timestamp of the previous visit (localStorage), set once.
+  const [prevVisit, setPrevVisit] = useState<string | null>(null);
+
+  useEffect(() => {
+    try {
+      const KEY = "promppy:lastVisit";
+      const prev = localStorage.getItem(KEY);
+      // Only treat visits >10 min apart as a "return" — reloads don't count.
+      if (prev && Date.now() - new Date(prev).getTime() > 10 * 60_000) setPrevVisit(prev);
+      localStorage.setItem(KEY, new Date().toISOString());
+    } catch {
+      // storage unavailable (private mode) — feature silently off
+    }
+  }, []);
 
   const applyPayload = useCallback((payload: FeedPayload, flashIds: number[]) => {
     payload.items.forEach((i) => knownIds.current.add(i.id));
@@ -205,6 +220,10 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
   }, [combined, cursor]);
 
   const seenDates = new Set<string>();
+  // Read-marker goes before the first item older than the previous visit
+  // (only meaningful if at least one newer item exists above it).
+  const readMarkerIdx = prevVisit ? combined.findIndex((i) => i.publishedAt <= prevVisit) : -1;
+  const briefing = data?.briefing;
 
   return (
     <div className="mx-auto max-w-4xl px-3 sm:px-6">
@@ -309,6 +328,19 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
         </p>
       )}
 
+      {briefing && (
+        <section className="mt-3 rounded border border-[#ffb020]/25 bg-[#ffb020]/[0.04] px-4 py-3">
+          <h2 className="font-mono-ts text-xs font-semibold text-[#ffb020]">
+            ☀ 오늘의 브리핑 <span className="font-normal text-[#8b949e]">{briefing.dateKst}</span>
+          </h2>
+          <div className="mt-2 space-y-1 text-[13px] leading-relaxed text-[#c9d1d9]">
+            {briefing.content.split("\n").filter(Boolean).map((line, i) => (
+              <p key={i}>{line}</p>
+            ))}
+          </div>
+        </section>
+      )}
+
       <ol>
         {combined.map((item, idx) => {
           const style = TIER_STYLE[item.tier] ?? TIER_STYLE["참고"];
@@ -321,6 +353,14 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
           }
           return (
             <Fragment key={item.id}>
+              {idx === readMarkerIdx && idx > 0 && (
+                <li
+                  aria-hidden
+                  className="border-b border-[#3fb950]/20 bg-[#3fb950]/[0.04] px-3 py-1 text-center font-mono-ts text-[10px] text-[#3fb950]/70"
+                >
+                  ── 여기까지 읽음 ──
+                </li>
+              )}
               {separator && (
                 <li
                   aria-hidden
@@ -391,6 +431,9 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
                       >
                         상세 페이지 →
                       </a>
+                      <span className="ml-auto">
+                        <FeedbackButton itemId={item.id} />
+                      </span>
                     </div>
                   </div>
                 )}

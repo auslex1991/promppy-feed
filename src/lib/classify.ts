@@ -44,7 +44,7 @@ Same-event clustering: when several items describe ONE launch event (a flagship 
 ### 참고 (Reference) — everything relevant that doesn't meet the bars above: papers with traction, explanatory lab posts, interviews/analysis, funding < $100M, smaller launches, follow-up coverage.
 
 ## Duplicate detection (cross-language)
-You are given a list of stories ALREADY in the feed. If the new item covers the SAME underlying news event as one already listed — even in a different language, from a different source, or with a different headline/angle — output action "duplicate" (tier null, headline_ko and why_ko empty strings). Korean outlets routinely re-report or translate English-language stories hours later; such re-coverage IS a duplicate. Two examples of the same story: "OpenAI releases GPT-5.6" and "오픈AI, GPT-5.6 출시". A follow-up that adds SUBSTANTIAL NEW information (new numbers, a new development, a reaction with news value) is NOT a duplicate — publish it. When unsure whether it's genuinely new, prefer "duplicate" for translated re-coverage and "publish" for original reporting.
+You are given a list of stories ALREADY in the feed, each with a numeric id. If the new item covers the SAME underlying news event as one already listed — even in a different language, from a different source, or with a different headline/angle — output action "duplicate" with duplicate_of set to that story's id (tier null, headline_ko and why_ko empty strings). For any other action, duplicate_of is null. Korean outlets routinely re-report or translate English-language stories hours later; such re-coverage IS a duplicate. Two examples of the same story: "OpenAI releases GPT-5.6" and "오픈AI, GPT-5.6 출시". A follow-up that adds SUBSTANTIAL NEW information (new numbers, a new development, a reaction with news value) is NOT a duplicate — publish it. When unsure whether it's genuinely new, prefer "duplicate" for translated re-coverage and "publish" for original reporting.
 
 ## Korean output rules
 - headline_ko: natural Korean headline (not literal machine translation). Keep widely-used product/model names in original form (GPT-5, Claude, Cursor, Llama — never transliterate).
@@ -59,8 +59,9 @@ const OUTPUT_SCHEMA = {
     tier: { anyOf: [{ type: "string", enum: ["속보", "중요", "참고"] }, { type: "null" }] },
     headline_ko: { type: "string" },
     why_ko: { type: "string" },
+    duplicate_of: { anyOf: [{ type: "integer" }, { type: "null" }] },
   },
-  required: ["action", "tier", "headline_ko", "why_ko"],
+  required: ["action", "tier", "headline_ko", "why_ko", "duplicate_of"],
   additionalProperties: false,
 };
 
@@ -76,7 +77,7 @@ function getClient(): Anthropic {
 function formatRecentContext(recent: RecentItem[]): string {
   if (recent.length === 0) return "(none yet)";
   return recent
-    .map((r, i) => `${i + 1}. [${SOURCE_NAMES[r.source_id] ?? r.source_id}] ${r.headline_ko}`)
+    .map((r) => `id ${r.id} [${SOURCE_NAMES[r.source_id] ?? r.source_id}] ${r.headline_ko}`)
     .join("\n");
 }
 
@@ -153,9 +154,31 @@ ${input.excerpt.slice(0, 1500)}`,
   });
   if (response.stop_reason === "refusal") {
     // Treat as unclassifiable rather than crashing the run.
-    return { action: "skip", tier: null, headline_ko: "", why_ko: "" };
+    return { action: "skip", tier: null, headline_ko: "", why_ko: "", duplicate_of: null };
   }
   const text = response.content.find((b) => b.type === "text");
   if (!text || text.type !== "text") throw new Error("no text block in classification response");
   return JSON.parse(text.text) as Classification;
+}
+
+/**
+ * 오늘의 브리핑: one call per day condensing the last 24h's top items into a
+ * 4–6 line morning digest, pinned above the feed.
+ */
+export async function generateBriefing(
+  items: Array<{ headline_ko: string; why_ko: string; tier: string }>
+): Promise<string> {
+  const list = items
+    .map((i) => `[${i.tier}] ${i.headline_ko} — ${i.why_ko}`)
+    .join("\n");
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 700,
+    system:
+      "당신은 promppy의 아침 브리핑 작성자입니다. 제공된 최근 24시간 AI 뉴스 목록에서 한국 AI 실무자에게 가장 중요한 것들을 골라, 4~6개의 짧은 불릿(각 줄 '• '로 시작, 한 줄 60자 이내)으로 요약하세요. 서두·맺음말 없이 불릿만 출력합니다. 겹치는 소식은 묶고, 구체적 수치·제품명은 유지하세요.",
+    messages: [{ role: "user", content: list }],
+  });
+  const text = response.content.find((b) => b.type === "text");
+  if (!text || text.type !== "text") throw new Error("no text in briefing response");
+  return text.text.trim();
 }

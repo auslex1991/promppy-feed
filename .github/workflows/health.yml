@@ -1,0 +1,37 @@
+name: health
+
+# Feed-freshness watchdog. If the crawl pipeline silently stalls (scheduler
+# outage, source-wide failure, deploy regression), this workflow FAILS —
+# and GitHub emails the repo owner about failed workflows by default.
+# The crawl cadence is hourly; 3h without a successful crawl = alert.
+on:
+  schedule:
+    - cron: "25 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: health
+  cancel-in-progress: true
+
+jobs:
+  freshness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check feed freshness
+        run: |
+          set -euo pipefail
+          body=$(curl -sS --max-time 60 https://www.promppy.com/api/feed)
+          last=$(echo "$body" | jq -r '.lastCrawlAt // empty')
+          if [ -z "$last" ]; then
+            echo "::error::no lastCrawlAt in /api/feed response"
+            exit 1
+          fi
+          last_s=$(date -d "$last" +%s)
+          now_s=$(date +%s)
+          age=$(( now_s - last_s ))
+          echo "last successful crawl: $last (${age}s ago)"
+          if [ "$age" -gt 10800 ]; then
+            echo "::error::feed is stale — no successful crawl in the last 3 hours"
+            exit 1
+          fi

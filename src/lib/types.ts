@@ -22,13 +22,21 @@ export interface Classification {
   tier: Tier | null;
   headline_ko: string;
   why_ko: string;
+  /** When action is "duplicate": the DB id of the already-published story it matches. */
+  duplicate_of?: number | null;
 }
 
 /** Compact recently-published context passed to the classifier for cross-language dedup. */
 export interface RecentItem {
+  id: number;
   source_id: string;
   title_orig: string;
   headline_ko: string;
+}
+
+export interface Briefing {
+  dateKst: string; // YYYY-MM-DD in KST
+  content: string;
 }
 
 /** Response shape of /api/feed and the SSR initial payload. */
@@ -36,6 +44,14 @@ export interface FeedPayload {
   items: FeedItem[];
   lastCrawlAt: string | null;
   serverNow: string;
+  briefing?: Briefing | null;
+}
+
+/** Suppressed duplicate coverage of a published story ("다른 매체 보도"). */
+export interface DupCoverage {
+  sourceId: string;
+  titleOrig: string;
+  url: string;
 }
 
 /** Row shape served to the frontend. */

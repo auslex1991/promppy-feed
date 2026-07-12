@@ -25,7 +25,7 @@ async function main() {
 
   const context: RecentItem[] = (
     await pool.query(
-      `SELECT source_id, title_orig, headline_ko FROM items
+      `SELECT id, source_id, title_orig, headline_ko FROM items
        WHERE status = 'published' AND published_at > now() - interval '3 days'
        ORDER BY published_at DESC LIMIT 80`
     )
@@ -55,7 +55,7 @@ async function main() {
       );
       if (r.action === "publish") {
         pub++;
-        context.unshift({ source_id: p.source_id, title_orig: p.title_orig, headline_ko: r.headline_ko });
+        context.unshift({ id: p.id, source_id: p.source_id, title_orig: p.title_orig, headline_ko: r.headline_ko });
       } else if (r.action === "duplicate") dup++;
       else skip++;
     } catch (e) {

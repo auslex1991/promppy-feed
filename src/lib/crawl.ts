@@ -6,8 +6,11 @@ import {
   applyClassification,
   startRun,
   finishRun,
+  getBriefing,
+  saveBriefing,
+  getTopForBriefing,
 } from "./db";
-import { classifyItem, gateItem } from "./classify";
+import { classifyItem, gateItem, generateBriefing } from "./classify";
 import { fetchArticleText } from "./adapters/article";
 import type { Classification, RecentItem } from "./types";
 
@@ -70,13 +73,31 @@ export async function runCrawl(): Promise<CrawlStats> {
       await applyClassification(p.id, result);
       if (result.action === "publish") {
         classified++;
-        context.unshift({ source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
+        context.unshift({ id: p.id, source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
       } else if (result.action === "duplicate") {
         duplicates++;
       }
     } catch (e) {
       errors.push(`classify #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
+  }
+
+  // 오늘의 브리핑: once per KST day, first crawl at/after 07:00 KST writes it.
+  try {
+    const nowD = new Date();
+    const kstDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(nowD);
+    const kstHour = Number(
+      new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", hour12: false }).format(nowD)
+    );
+    if (kstHour >= 7 && !(await getBriefing(kstDate))) {
+      const top = await getTopForBriefing(12);
+      if (top.length >= 4) {
+        const content = await generateBriefing(top);
+        if (content) await saveBriefing(kstDate, content);
+      }
+    }
+  } catch (e) {
+    errors.push(`briefing: ${e instanceof Error ? e.message : String(e)}`);
   }
 
   const stats: CrawlStats = {

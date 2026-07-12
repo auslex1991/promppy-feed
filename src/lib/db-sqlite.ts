@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type BetterSqlite3 from "better-sqlite3";
-import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
+import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Tier } from "./types";
 import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 // Local-dev backend. Loaded lazily so production builds (Postgres path) never
@@ -46,7 +46,22 @@ async function getDb(): Promise<BetterSqlite3.Database> {
       classified INTEGER NOT NULL DEFAULT 0,
       errors TEXT NOT NULL DEFAULT '[]'
     );
+    CREATE TABLE IF NOT EXISTS feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      item_id INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE TABLE IF NOT EXISTS briefings (
+      date_kst TEXT PRIMARY KEY,
+      content TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
   `);
+  try {
+    db.exec(`ALTER TABLE items ADD COLUMN dup_of INTEGER`);
+  } catch {
+    // column already exists
+  }
   return db;
 }
 
@@ -96,13 +111,14 @@ export async function applyClassification(id: number, c: Classification): Promis
   const status = c.action === "publish" ? "published" : c.action === "duplicate" ? "duplicate" : "skipped";
   d.prepare(
     `UPDATE items SET status = @status, tier = @tier, headline_ko = @headline,
-     why_ko = @why, classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
+     why_ko = @why, dup_of = @dupOf, classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
   ).run({
     id,
     status,
     tier: c.tier,
     headline: c.headline_ko || null,
     why: c.why_ko || null,
+    dupOf: c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
   });
 }
 
@@ -110,11 +126,83 @@ export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
   const d = await getDb();
   return d
     .prepare(
-      `SELECT source_id, title_orig, headline_ko FROM items
+      `SELECT id, source_id, title_orig, headline_ko FROM items
        WHERE status = 'published' AND published_at > datetime('now', '-3 days')
        ORDER BY published_at DESC LIMIT ?`
     )
     .all(limit) as RecentItem[];
+}
+
+export async function getDupCoverage(itemId: number): Promise<DupCoverage[]> {
+  const d = await getDb();
+  const rows = d
+    .prepare(
+      `SELECT source_id, title_orig, url FROM items
+       WHERE dup_of = ? AND status = 'duplicate' ORDER BY published_at DESC LIMIT 6`
+    )
+    .all(itemId) as Array<{ source_id: string; title_orig: string; url: string }>;
+  return rows.map((r) => ({ sourceId: r.source_id, titleOrig: r.title_orig, url: r.url }));
+}
+
+export async function getLatestPublished(excludeId: number, limit = 5): Promise<FeedItem[]> {
+  const d = await getDb();
+  const rows = d
+    .prepare(
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+       FROM items WHERE status = 'published' AND id <> ?
+       ORDER BY published_at DESC LIMIT ?`
+    )
+    .all(excludeId, limit) as Array<{
+    id: number;
+    source_id: string;
+    url: string;
+    title_orig: string;
+    headline_ko: string;
+    why_ko: string;
+    tier: Tier;
+    published_at: string;
+  }>;
+  return rows.map((r) => ({
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier,
+    publishedAt: r.published_at,
+  }));
+}
+
+export async function addFeedback(itemId: number): Promise<void> {
+  const d = await getDb();
+  d.prepare(`INSERT INTO feedback (item_id) VALUES (?)`).run(itemId);
+}
+
+export async function getBriefing(dateKst: string): Promise<Briefing | null> {
+  const d = await getDb();
+  const r = d.prepare(`SELECT date_kst, content FROM briefings WHERE date_kst = ?`).get(dateKst) as
+    | { date_kst: string; content: string }
+    | undefined;
+  return r ? { dateKst: r.date_kst, content: r.content } : null;
+}
+
+export async function saveBriefing(dateKst: string, content: string): Promise<void> {
+  const d = await getDb();
+  d.prepare(`INSERT OR IGNORE INTO briefings (date_kst, content) VALUES (?, ?)`).run(dateKst, content);
+}
+
+export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko: string; why_ko: string; tier: Tier }>> {
+  const d = await getDb();
+  return d
+    .prepare(
+      `SELECT headline_ko, why_ko, tier FROM items
+       WHERE status = 'published' AND classified_at > datetime('now', '-24 hours')
+       ORDER BY CASE tier WHEN '속보' THEN 0 WHEN '중요' THEN 1 ELSE 2 END, published_at DESC
+       LIMIT ?`
+    )
+    .all(limit) as Array<{ headline_ko: string; why_ko: string; tier: Tier }>;
 }
 
 export async function getItem(id: number): Promise<FeedItem | null> {

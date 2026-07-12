@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
+import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Tier } from "./types";
 import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 let pool: Pool | null = null;
@@ -48,6 +48,18 @@ function ensureSchema(): Promise<void> {
         classified INTEGER NOT NULL DEFAULT 0,
         errors TEXT NOT NULL DEFAULT '[]'
       );
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS dup_of INTEGER;
+      CREATE INDEX IF NOT EXISTS idx_items_dup_of ON items(dup_of);
+      CREATE TABLE IF NOT EXISTS feedback (
+        id SERIAL PRIMARY KEY,
+        item_id INTEGER NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS briefings (
+        date_kst TEXT PRIMARY KEY,
+        content TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
     `
       )
       .then(() => undefined);
@@ -93,20 +105,92 @@ function statusFor(action: Classification["action"]): string {
 
 export async function applyClassification(id: number, c: Classification): Promise<void> {
   await getPool().query(
-    `UPDATE items SET status = $1, tier = $2, headline_ko = $3, why_ko = $4, classified_at = now() WHERE id = $5`,
-    [statusFor(c.action), c.tier, c.headline_ko || null, c.why_ko || null, id]
+    `UPDATE items SET status = $1, tier = $2, headline_ko = $3, why_ko = $4,
+     dup_of = $5, classified_at = now() WHERE id = $6`,
+    [
+      statusFor(c.action),
+      c.tier,
+      c.headline_ko || null,
+      c.why_ko || null,
+      c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
+      id,
+    ]
   );
 }
 
 export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT source_id, title_orig, headline_ko FROM items
+    `SELECT id, source_id, title_orig, headline_ko FROM items
      WHERE status = 'published' AND published_at > now() - interval '3 days'
      ORDER BY published_at DESC LIMIT $1`,
     [limit]
   );
   return res.rows as RecentItem[];
+}
+
+/** Suppressed duplicates that point at this published story ("다른 매체 보도"). */
+export async function getDupCoverage(itemId: number): Promise<DupCoverage[]> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT source_id, title_orig, url FROM items
+     WHERE dup_of = $1 AND status = 'duplicate' ORDER BY published_at DESC LIMIT 6`,
+    [itemId]
+  );
+  return res.rows.map((r) => ({ sourceId: r.source_id, titleOrig: r.title_orig, url: r.url }));
+}
+
+export async function getLatestPublished(excludeId: number, limit = 5): Promise<FeedItem[]> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+     FROM items WHERE status = 'published' AND id <> $1
+     ORDER BY published_at DESC LIMIT $2`,
+    [excludeId, limit]
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier as Tier,
+    publishedAt: new Date(r.published_at).toISOString(),
+  }));
+}
+
+export async function addFeedback(itemId: number): Promise<void> {
+  await ensureSchema();
+  await getPool().query(`INSERT INTO feedback (item_id) VALUES ($1)`, [itemId]);
+}
+
+export async function getBriefing(dateKst: string): Promise<Briefing | null> {
+  await ensureSchema();
+  const res = await getPool().query(`SELECT date_kst, content FROM briefings WHERE date_kst = $1`, [dateKst]);
+  const r = res.rows[0];
+  return r ? { dateKst: r.date_kst, content: r.content } : null;
+}
+
+export async function saveBriefing(dateKst: string, content: string): Promise<void> {
+  await getPool().query(
+    `INSERT INTO briefings (date_kst, content) VALUES ($1, $2) ON CONFLICT (date_kst) DO NOTHING`,
+    [dateKst, content]
+  );
+}
+
+/** Top material of the last 24h for the morning briefing (속보/중요 first). */
+export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko: string; why_ko: string; tier: Tier }>> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT headline_ko, why_ko, tier FROM items
+     WHERE status = 'published' AND classified_at > now() - interval '24 hours'
+     ORDER BY CASE tier WHEN '속보' THEN 0 WHEN '중요' THEN 1 ELSE 2 END, published_at DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return res.rows;
 }
 
 export async function getItem(id: number): Promise<FeedItem | null> {
