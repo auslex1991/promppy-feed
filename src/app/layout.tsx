@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Noto_Sans_KR } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const mono = JetBrains_Mono({
@@ -42,7 +43,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko" className={`${mono.variable} ${sansKr.variable} h-full antialiased`}>
-      <body className="min-h-full bg-[#0a0e14] text-[#c9d1d9]">{children}</body>
+      <body className="min-h-full bg-[#0a0e14] text-[#c9d1d9]">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

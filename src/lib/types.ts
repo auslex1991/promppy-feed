@@ -31,6 +31,13 @@ export interface RecentItem {
   headline_ko: string;
 }
 
+/** Response shape of /api/feed and the SSR initial payload. */
+export interface FeedPayload {
+  items: FeedItem[];
+  lastCrawlAt: string | null;
+  serverNow: string;
+}
+
 /** Row shape served to the frontend. */
 export interface FeedItem {
   id: number;
