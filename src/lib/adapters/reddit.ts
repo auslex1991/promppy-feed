@@ -35,8 +35,8 @@ export async function fetchReddit(
 ): Promise<RawItem[]> {
   const multi = subreddits.join("+");
   const [top, hot] = await Promise.all([
-    fetchListing(`https://www.reddit.com/r/${multi}/top.rss?t=day&limit=40`),
-    fetchListing(`https://www.reddit.com/r/${multi}/hot.rss?limit=40`),
+    fetchListing(`https://www.reddit.com/r/${multi}/top.rss?t=day&limit=${maxItems}`),
+    fetchListing(`https://www.reddit.com/r/${multi}/hot.rss?limit=${maxItems}`),
   ]);
   if (top.length === 0 && hot.length === 0) {
     throw new Error("reddit: both top and hot listings failed (rate limited?)");
