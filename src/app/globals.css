@@ -16,6 +16,42 @@ body {
   font-family: var(--font-sans-kr), "Pretendard", -apple-system, sans-serif;
 }
 
+/* Legal pages (이용약관, 개인정보 처리방침) */
+.legal h2 {
+  margin-top: 1.75rem;
+  margin-bottom: 0.4rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #e6edf3;
+}
+.legal p {
+  margin-top: 0.5rem;
+  font-size: 14px;
+  line-height: 1.75;
+  color: #c9d1d9;
+}
+.legal ul,
+.legal ol {
+  margin-top: 0.5rem;
+  padding-left: 1.3rem;
+}
+.legal ul {
+  list-style: disc;
+}
+.legal ol {
+  list-style: decimal;
+}
+.legal li {
+  margin-top: 0.3rem;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #c9d1d9;
+}
+.legal strong {
+  color: #e6edf3;
+  font-weight: 600;
+}
+
 .font-mono-ts {
   font-family: var(--font-mono), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;

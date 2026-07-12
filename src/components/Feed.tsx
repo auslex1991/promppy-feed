@@ -305,7 +305,16 @@ export default function Feed() {
       )}
 
       <footer className="py-6 text-center font-mono-ts text-[11px] text-[#8b949e]/50">
-        1시간마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다
+        <p>1시간마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다</p>
+        <p className="mt-2">
+          <a href="/terms" className="hover:text-[#8b949e] hover:underline">
+            이용약관
+          </a>
+          <span className="mx-2">·</span>
+          <a href="/privacy" className="hover:text-[#8b949e] hover:underline">
+            개인정보 처리방침
+          </a>
+        </p>
       </footer>
     </div>
   );
