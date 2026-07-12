@@ -91,7 +91,9 @@ export const SOURCES: SourceDef[] = [
     ),
   },
   // Group E — Korean
-  { id: "aitimes", name: "AI타임스", fetch: (id) => fetchRss(id, "http://www.aitimes.com/rss/allArticle.xml") },
+  // AI타임스 pubDate has no timezone designator and is KST — parse it as such
+  // or every item lands +9h in the future and pins to the top of the feed.
+  { id: "aitimes", name: "AI타임스", fetch: (id) => fetchRss(id, "http://www.aitimes.com/rss/allArticle.xml", { naiveTzOffset: "+09:00" }) },
   { id: "geeknews", name: "GeekNews", preFilter: true, fetch: (id) => fetchRss(id, "https://news.hada.io/rss/news") },
   { id: "zdnet-kr", name: "ZDNet Korea", preFilter: true, fetch: (id) => fetchRss(id, "https://feeds.feedburner.com/zdkorea") },
 ];

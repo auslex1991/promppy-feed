@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import type BetterSqlite3 from "better-sqlite3";
 import type { Classification, FeedItem, RawItem, RecentItem, Tier } from "./types";
-import { canonicalUrl, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
+import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 // Local-dev backend. Loaded lazily so production builds (Postgres path) never
 // touch the native better-sqlite3 binding.
@@ -72,7 +72,7 @@ export async function insertNewItems(items: RawItem[]): Promise<number> {
         titleHash,
         title: r.title,
         excerpt: r.excerpt.slice(0, 1500),
-        publishedAt: r.publishedAt ?? new Date().toISOString(),
+        publishedAt: clampFuture(r.publishedAt),
       });
       inserted += res.changes;
     }

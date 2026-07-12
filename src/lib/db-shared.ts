@@ -25,6 +25,19 @@ export function normalizeTitle(t: string): string {
   return t.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
+/**
+ * Safety net for source clock skew / timezone misparses: a published_at in
+ * the future would pin the item to the top of the recency-sorted feed until
+ * real time catches up. Clamp to now (5-min tolerance for minor skew).
+ */
+export function clampFuture(iso: string | null): string {
+  const now = Date.now();
+  if (!iso) return new Date(now).toISOString();
+  const t = new Date(iso).getTime();
+  if (isNaN(t) || t > now + 5 * 60_000) return new Date(now).toISOString();
+  return iso;
+}
+
 // Display-share caps: no source may occupy more slots than its cap in the
 // rendered feed, independent of publish rate. Reddit gets ~20% by request;
 // everything else 10%.
