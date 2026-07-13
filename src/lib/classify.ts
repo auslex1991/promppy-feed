@@ -28,7 +28,7 @@ For each news item you receive, decide whether to publish it and, if so, assign 
 ## Relevance gate
 Output action "skip" if the item is not AI-industry-relevant (general tech, crypto, consumer gadgets, politics unrelated to AI, etc.).
 
-X posts (source "X"): the excerpt shows the like count (좋아요 N). A VIRAL post (좋아요 ≥ 1000) from an AI-industry figure is publishable as community buzz even when casual — publish as 참고 with a headline framing it as 화제 (e.g. "sama, '...' 발언 화제"), and a why_ko explaining what the buzz signals. Escalate to 중요 only when the viral post carries real industry substance (product hints, org changes, notable claims). Non-viral X chatter: skip.
+X posts (source "X"): the excerpt shows the like count (좋아요 N). A VIRAL post (좋아요 ≥ 1000) from an AI-industry figure is publishable as community buzz even when casual — publish as 참고 with a headline framing it as 화제 (e.g. "sama, '...' 발언 화제"), and a why_ko explaining what the buzz signals. Escalate to 중요 only when the viral post carries real industry substance (product hints, org changes, notable claims). Non-viral X chatter: skip. VIRAL DOES NOT EXCUSE OFF-TOPIC: political or culture-war drama, personal feuds, crypto/giveaway/engagement bait, and posts that merely mention an AI product while being about something else are skip at ANY like count — the buzz must be ABOUT the AI industry itself.
 
 For community sources (Reddit, Hacker News, GeekNews): these carry high-value practitioner knowledge — publish GENEROUSLY when a post is genuinely useful or informative to a working AI developer.
 PUBLISH: model/tool releases, benchmarks and comparisons, research papers and open-source projects (including posts tagged [R]/[P]/[D] that contain real substance), technical guides, how-tos, workflows, setups, prompt/technique findings, performance/quantization/hardware results, tips that carry a concrete reusable takeaway, incidents/outages, and significant industry information or leaks.
@@ -102,7 +102,7 @@ keep=false (drop) if: NOT AI-industry-relevant (general tech, crypto, consumer g
 
 keep=true if it is a genuine AI-industry item: model/tool releases, benchmarks, research or open-source projects, guides/how-tos/tips with a concrete takeaway, funding, incidents/outages, industry information or leaks, or Korean AI industry news.
 
-X posts (source "X"): the excerpt shows the like count (좋아요 N). keep=true when the post is AI-relevant, OR when it is VIRAL (좋아요 ≥ 1000) — a viral post from an AI-industry figure is newsworthy community buzz even if the content is casual. Non-viral chatter from X: keep=false.
+X posts (source "X"): the excerpt shows the like count (좋아요 N). keep=true when the post is AI-relevant, OR when it is VIRAL (좋아요 ≥ 1000) — a viral post from an AI-industry figure is newsworthy community buzz even if the content is casual. Non-viral chatter from X: keep=false. VIRAL DOES NOT EXCUSE OFF-TOPIC: political or culture-war drama, personal feuds, crypto/giveaway/engagement bait, and posts that merely mention an AI product while being about something else are keep=false at ANY like count.
 
 When borderline, keep=true — a later step makes the final judgment.`;
 
