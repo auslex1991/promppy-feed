@@ -25,6 +25,8 @@ For each news item you receive, decide whether to publish it and, if so, assign 
 ## Relevance gate
 Output action "skip" if the item is not AI-industry-relevant (general tech, crypto, consumer gadgets, politics unrelated to AI, etc.).
 
+X posts (source "X"): the excerpt shows the like count (좋아요 N). A VIRAL post (좋아요 ≥ 1000) from an AI-industry figure is publishable as community buzz even when casual — publish as 참고 with a headline framing it as 화제 (e.g. "sama, '...' 발언 화제"), and a why_ko explaining what the buzz signals. Escalate to 중요 only when the viral post carries real industry substance (product hints, org changes, notable claims). Non-viral X chatter: skip.
+
 For community sources (Reddit, Hacker News, GeekNews): these carry high-value practitioner knowledge — publish GENEROUSLY when a post is genuinely useful or informative to a working AI developer.
 PUBLISH: model/tool releases, benchmarks and comparisons, research papers and open-source projects (including posts tagged [R]/[P]/[D] that contain real substance), technical guides, how-tos, workflows, setups, prompt/technique findings, performance/quantization/hardware results, tips that carry a concrete reusable takeaway, incidents/outages, and significant industry information or leaks.
 SKIP: memes and jokes, pure opinion/rants/drama, low-effort venting or complaints, "which model should I use?" polls, personal support/help requests, self-promotion without substance, and vague anecdotes with no actionable takeaway.
@@ -95,6 +97,8 @@ const GATE_PROMPT = `You are a relevance filter for a Korean AI-news feed read b
 keep=false (drop) if: NOT AI-industry-relevant (general tech, crypto, consumer gadgets, politics unrelated to AI); OR — for community sources (Reddit, Hacker News, GeekNews) — it is a meme/joke, pure opinion/rant/drama, low-effort venting or complaint, "which model should I use?" poll, personal support/help request, self-promotion without substance, or a vague anecdote with no actionable takeaway.
 
 keep=true if it is a genuine AI-industry item: model/tool releases, benchmarks, research or open-source projects, guides/how-tos/tips with a concrete takeaway, funding, incidents/outages, industry information or leaks, or Korean AI industry news.
+
+X posts (source "X"): the excerpt shows the like count (좋아요 N). keep=true when the post is AI-relevant, OR when it is VIRAL (좋아요 ≥ 1000) — a viral post from an AI-industry figure is newsworthy community buzz even if the content is casual. Non-viral chatter from X: keep=false.
 
 When borderline, keep=true — a later step makes the final judgment.`;
 
@@ -219,35 +223,41 @@ body (may be truncated):
 ${input.excerpt.slice(0, 1500)}`;
 
   if (geminiEnabled()) {
-    // Gemini drafts everything; Opus polishes only the high-visibility tiers.
-    const draft = await geminiJson<Classification>(
-      GEMINI_CLASSIFY_MODEL,
-      SYSTEM_PROMPT,
-      userContent,
-      GEMINI_CLASSIFY_SCHEMA,
-      1024
-    );
-    const result: Classification = {
-      action: draft.action ?? "skip",
-      tier: draft.tier ?? null,
-      headline_ko: draft.headline_ko ?? "",
-      why_ko: draft.why_ko ?? "",
-      duplicate_of: draft.duplicate_of ?? null,
-    };
-    if (result.action === "publish" && (result.tier === "속보" || result.tier === "중요")) {
-      try {
-        const polished = await polishItem(input, {
-          headline_ko: result.headline_ko,
-          why_ko: result.why_ko,
-          tier: result.tier,
-        });
-        result.headline_ko = polished.headline_ko || result.headline_ko;
-        result.why_ko = polished.why_ko || result.why_ko;
-      } catch {
-        // keep the Gemini draft — a missed polish is not worth losing the item
+    try {
+      // Gemini drafts everything; Opus polishes only the high-visibility tiers.
+      const draft = await geminiJson<Classification>(
+        GEMINI_CLASSIFY_MODEL,
+        SYSTEM_PROMPT,
+        userContent,
+        GEMINI_CLASSIFY_SCHEMA,
+        1024
+      );
+      const result: Classification = {
+        action: draft.action ?? "skip",
+        tier: draft.tier ?? null,
+        headline_ko: draft.headline_ko ?? "",
+        why_ko: draft.why_ko ?? "",
+        duplicate_of: draft.duplicate_of ?? null,
+      };
+      if (result.action === "publish" && (result.tier === "속보" || result.tier === "중요")) {
+        try {
+          const polished = await polishItem(input, {
+            headline_ko: result.headline_ko,
+            why_ko: result.why_ko,
+            tier: result.tier,
+          });
+          result.headline_ko = polished.headline_ko || result.headline_ko;
+          result.why_ko = polished.why_ko || result.why_ko;
+        } catch {
+          // keep the Gemini draft — a missed polish is not worth losing the item
+        }
       }
+      return result;
+    } catch (e) {
+      // Gemini outage (503 storms, timeouts after retries) → fall through to
+      // the all-Claude path so a provider incident never stalls the feed.
+      console.error("gemini classify failed, falling back to claude:", e instanceof Error ? e.message : e);
     }
-    return result;
   }
 
   const response = await getClient().messages.create({
