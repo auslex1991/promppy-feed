@@ -50,6 +50,7 @@ function ensureSchema(): Promise<void> {
       );
       ALTER TABLE items ADD COLUMN IF NOT EXISTS dup_of INTEGER;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS summary_ko TEXT;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS is_tip BOOLEAN NOT NULL DEFAULT false;
       CREATE INDEX IF NOT EXISTS idx_items_dup_of ON items(dup_of);
       CREATE TABLE IF NOT EXISTS feedback (
         id SERIAL PRIMARY KEY,
@@ -107,13 +108,14 @@ function statusFor(action: Classification["action"]): string {
 export async function applyClassification(id: number, c: Classification): Promise<void> {
   await getPool().query(
     `UPDATE items SET status = $1, tier = $2, headline_ko = $3, why_ko = $4,
-     dup_of = $5, classified_at = now() WHERE id = $6`,
+     dup_of = $5, is_tip = $6, classified_at = now() WHERE id = $7`,
     [
       statusFor(c.action),
       c.tier,
       c.headline_ko || null,
       c.why_ko || null,
       c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
+      c.action === "publish" && (c.is_tip ?? false),
       id,
     ]
   );
@@ -197,7 +199,7 @@ export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko
 export async function getItem(id: number): Promise<FeedItem | null> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko, is_tip
      FROM items WHERE id = $1 AND status = 'published'`,
     [id]
   );
@@ -213,6 +215,7 @@ export async function getItem(id: number): Promise<FeedItem | null> {
     whyKo: r.why_ko,
     tier: r.tier as Tier,
     publishedAt: new Date(r.published_at).toISOString(),
+    isTip: Boolean(r.is_tip),
     summaryKo: r.summary_ko ?? null,
   };
 }
@@ -226,7 +229,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
   // Fetch a recency-sorted candidate pool with headroom; per-source caps and
   // no-consecutive-source interleaving happen in arrangeFeed (db-shared.ts).
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
      FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT $1`,
     [limit * 4]
   );
@@ -240,6 +243,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
     whyKo: r.why_ko,
     tier: r.tier as Tier,
     publishedAt: new Date(r.published_at).toISOString(),
+    isTip: Boolean(r.is_tip),
   }));
   return arrangeFeed(rows, limit);
 }
@@ -249,7 +253,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
 export async function getFeedBefore(beforeIso: string, limit = 50): Promise<FeedItem[]> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
      FROM items WHERE status = 'published' AND published_at < $1
      ORDER BY published_at DESC LIMIT $2`,
     [beforeIso, limit]
@@ -264,6 +268,7 @@ export async function getFeedBefore(beforeIso: string, limit = 50): Promise<Feed
     whyKo: r.why_ko,
     tier: r.tier as Tier,
     publishedAt: new Date(r.published_at).toISOString(),
+    isTip: Boolean(r.is_tip),
   }));
 }
 

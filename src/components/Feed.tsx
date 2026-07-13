@@ -395,6 +395,11 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
                   >
                     {item.tier}
                   </span>
+                  {item.isTip && (
+                    <span className="rounded border border-[#3fb950]/40 bg-[#3fb950]/10 px-1.5 py-px font-mono-ts text-[11px] font-medium text-[#3fb950]">
+                      팁
+                    </span>
+                  )}
                   <a
                     href={`/item/${item.id}`}
                     onClick={(e) => e.stopPropagation()}

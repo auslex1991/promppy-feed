@@ -60,6 +60,7 @@ async function getDb(): Promise<BetterSqlite3.Database> {
   for (const ddl of [
     `ALTER TABLE items ADD COLUMN dup_of INTEGER`,
     `ALTER TABLE items ADD COLUMN summary_ko TEXT`,
+    `ALTER TABLE items ADD COLUMN is_tip INTEGER NOT NULL DEFAULT 0`,
   ]) {
     try {
       db.exec(ddl);
@@ -116,7 +117,7 @@ export async function applyClassification(id: number, c: Classification): Promis
   const status = c.action === "publish" ? "published" : c.action === "duplicate" ? "duplicate" : "skipped";
   d.prepare(
     `UPDATE items SET status = @status, tier = @tier, headline_ko = @headline,
-     why_ko = @why, dup_of = @dupOf, classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
+     why_ko = @why, dup_of = @dupOf, is_tip = @isTip, classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
   ).run({
     id,
     status,
@@ -124,6 +125,7 @@ export async function applyClassification(id: number, c: Classification): Promis
     headline: c.headline_ko || null,
     why: c.why_ko || null,
     dupOf: c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
+    isTip: c.action === "publish" && c.is_tip ? 1 : 0,
   });
 }
 
@@ -214,11 +216,11 @@ export async function getItem(id: number): Promise<FeedItem | null> {
   const d = await getDb();
   const r = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko, is_tip
        FROM items WHERE id = ? AND status = 'published'`
     )
     .get(id) as
-    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string; summary_ko: string | null }
+    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string; summary_ko: string | null; is_tip: number }
     | undefined;
   if (!r) return null;
   return {
@@ -231,6 +233,7 @@ export async function getItem(id: number): Promise<FeedItem | null> {
     whyKo: r.why_ko,
     tier: r.tier,
     publishedAt: r.published_at,
+    isTip: Boolean(r.is_tip),
     summaryKo: r.summary_ko ?? null,
   };
 }
@@ -246,7 +249,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
   // arrangeFeed (db-shared.ts).
   const rows = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
        FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT ?`
     )
     .all(limit * 4) as Array<{
@@ -258,6 +261,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
     why_ko: string;
     tier: Tier;
     published_at: string;
+    is_tip: number;
   }>;
   return arrangeFeed(
     rows.map((r) => ({
@@ -270,6 +274,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
       whyKo: r.why_ko,
       tier: r.tier,
       publishedAt: r.published_at,
+      isTip: Boolean(r.is_tip),
     })),
     limit
   );
@@ -281,7 +286,7 @@ export async function getFeedBefore(beforeIso: string, limit = 50): Promise<Feed
   const d = await getDb();
   const rows = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
        FROM items WHERE status = 'published' AND published_at < ?
        ORDER BY published_at DESC LIMIT ?`
     )
@@ -294,6 +299,7 @@ export async function getFeedBefore(beforeIso: string, limit = 50): Promise<Feed
     why_ko: string;
     tier: Tier;
     published_at: string;
+    is_tip: number;
   }>;
   return rows.map((r) => ({
     id: r.id,
@@ -305,6 +311,7 @@ export async function getFeedBefore(beforeIso: string, limit = 50): Promise<Feed
     whyKo: r.why_ko,
     tier: r.tier,
     publishedAt: r.published_at,
+    isTip: Boolean(r.is_tip),
   }));
 }
 

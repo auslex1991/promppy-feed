@@ -64,6 +64,11 @@ export default async function ItemPage({ params }: Props) {
           >
             {item.tier}
           </span>
+          {item.isTip && (
+            <span className="rounded border border-[#3fb950]/40 bg-[#3fb950]/10 px-1.5 py-px text-[11px] font-medium text-[#3fb950]">
+              팁
+            </span>
+          )}
           <span>{sourceName}</span>
           <time dateTime={item.publishedAt} suppressHydrationWarning>
             {kstDate(item.publishedAt)} KST

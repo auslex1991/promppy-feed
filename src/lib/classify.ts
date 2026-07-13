@@ -28,7 +28,8 @@ For each news item you receive, decide whether to publish it and, if so, assign 
 ## Relevance gate
 Output action "skip" if the item is not AI-industry-relevant (general tech, crypto, consumer gadgets, politics unrelated to AI, etc.).
 
-X posts (source "X"): the excerpt shows the like count (좋아요 N). A VIRAL post (좋아요 ≥ 1000) from an AI-industry figure is publishable as community buzz even when casual — publish as 참고 with a headline framing it as 화제 (e.g. "sama, '...' 발언 화제"), and a why_ko explaining what the buzz signals. Escalate to 중요 only when the viral post carries real industry substance (product hints, org changes, notable claims). Non-viral X chatter: skip. VIRAL DOES NOT EXCUSE OFF-TOPIC: political or culture-war drama, personal feuds, crypto/giveaway/engagement bait, and posts that merely mention an AI product while being about something else are skip at ANY like count — the buzz must be ABOUT the AI industry itself.
+X posts (source "X"): the excerpt shows the like count (좋아요 N). A VIRAL post (좋아요 ≥ 1000) from an AI-industry figure is publishable as community buzz even when casual — publish as 참고 with a headline framing it as 화제 (e.g. "sama, '...' 발언 화제"), and a why_ko explaining what the buzz signals. Escalate to 중요 only when the viral post carries real industry substance (product hints, org changes, notable claims). VIRAL DOES NOT EXCUSE OFF-TOPIC: political or culture-war drama, personal feuds, crypto/giveaway/engagement bait, and posts that merely mention an AI product while being about something else are skip at ANY like count — the buzz must be ABOUT the AI industry itself.
+X TIPS: an X post with a CONCRETE, REPRODUCIBLE practitioner takeaway (a workflow, prompt technique, tool configuration, debugging insight, benchmark number, working setup) is publishable REGARDLESS of like count — judge it by the community-source standard below, not by engagement. Vague advice ("write better prompts", "just use agents") is NOT a tip — it must name something specific the reader can act on today. All other non-viral X chatter: skip.
 
 For community sources (Reddit, Hacker News, GeekNews): these carry high-value practitioner knowledge — publish GENEROUSLY when a post is genuinely useful or informative to a working AI developer.
 PUBLISH: model/tool releases, benchmarks and comparisons, research papers and open-source projects (including posts tagged [R]/[P]/[D] that contain real substance), technical guides, how-tos, workflows, setups, prompt/technique findings, performance/quantization/hardware results, tips that carry a concrete reusable takeaway, incidents/outages, and significant industry information or leaks.
@@ -61,6 +62,9 @@ When in doubt between 중요 and 참고, choose 참고 — 중요 requires a CLE
 ## Duplicate detection (cross-language)
 You are given a list of stories ALREADY in the feed, each with a numeric id. If the new item covers the SAME underlying news event as one already listed — even in a different language, from a different source, or with a different headline/angle — output action "duplicate" with duplicate_of set to that story's id (tier null, headline_ko and why_ko empty strings). For any other action, duplicate_of is null. Korean outlets routinely re-report or translate English-language stories hours later; such re-coverage IS a duplicate. Two examples of the same story: "OpenAI releases GPT-5.6" and "오픈AI, GPT-5.6 출시". A follow-up that adds SUBSTANTIAL NEW information (new numbers, a new development, a reaction with news value) is NOT a duplicate — publish it. When unsure whether it's genuinely new, prefer "duplicate" for translated re-coverage and "publish" for original reporting.
 
+## is_tip flag
+Set is_tip=true when the published item's core value is a practical, reusable technique the reader can apply — a workflow, prompt pattern, tool setup, optimization, debugging method, or how-to with concrete specifics. News about products, companies, research announcements, funding, or industry events is is_tip=false even when useful. When action is not "publish", is_tip=false.
+
 ## Korean output rules
 - headline_ko: natural Korean headline (not literal machine translation). Keep widely-used product/model names in original form (GPT-5, Claude, Cursor, Llama — never transliterate).
 - why_ko: ONE line, max 80 characters. The IMPLICATION for a Korean AI practitioner — what changes for them, what they should consider doing. NEVER restate the headline. Register example: "기존 GPT-5 대비 입력 토큰 40% 인하. OpenAI API 쓰는 서비스라면 마이그레이션 검토 가치 있음."
@@ -75,8 +79,9 @@ const OUTPUT_SCHEMA = {
     headline_ko: { type: "string" },
     why_ko: { type: "string" },
     duplicate_of: { anyOf: [{ type: "integer" }, { type: "null" }] },
+    is_tip: { type: "boolean" },
   },
-  required: ["action", "tier", "headline_ko", "why_ko", "duplicate_of"],
+  required: ["action", "tier", "headline_ko", "why_ko", "duplicate_of", "is_tip"],
   additionalProperties: false,
 };
 
@@ -102,7 +107,7 @@ keep=false (drop) if: NOT AI-industry-relevant (general tech, crypto, consumer g
 
 keep=true if it is a genuine AI-industry item: model/tool releases, benchmarks, research or open-source projects, guides/how-tos/tips with a concrete takeaway, funding, incidents/outages, industry information or leaks, or Korean AI industry news.
 
-X posts (source "X"): the excerpt shows the like count (좋아요 N). keep=true when the post is AI-relevant, OR when it is VIRAL (좋아요 ≥ 1000) — a viral post from an AI-industry figure is newsworthy community buzz even if the content is casual. Non-viral chatter from X: keep=false. VIRAL DOES NOT EXCUSE OFF-TOPIC: political or culture-war drama, personal feuds, crypto/giveaway/engagement bait, and posts that merely mention an AI product while being about something else are keep=false at ANY like count.
+X posts (source "X"): the excerpt shows the like count (좋아요 N). keep=true when the post is AI-relevant, OR when it is VIRAL (좋아요 ≥ 1000) — a viral post from an AI-industry figure is newsworthy community buzz even if the content is casual. keep=true ALSO for any X post with a concrete practitioner takeaway (a workflow, prompt technique, tool config, debugging insight, benchmark number) regardless of like count — treat it like a Reddit tip. Non-viral X chatter with no takeaway: keep=false. VIRAL DOES NOT EXCUSE OFF-TOPIC: political or culture-war drama, personal feuds, crypto/giveaway/engagement bait, and posts that merely mention an AI product while being about something else are keep=false at ANY like count.
 
 When borderline, keep=true — a later step makes the final judgment.`;
 
@@ -168,6 +173,7 @@ const GEMINI_CLASSIFY_SCHEMA = {
     headline_ko: { type: "STRING" },
     why_ko: { type: "STRING" },
     duplicate_of: { type: "INTEGER", nullable: true },
+    is_tip: { type: "BOOLEAN" },
   },
   required: ["action", "headline_ko", "why_ko"],
 };
@@ -246,6 +252,7 @@ ${input.excerpt.slice(0, 1500)}`;
         headline_ko: draft.headline_ko ?? "",
         why_ko: draft.why_ko ?? "",
         duplicate_of: draft.duplicate_of ?? null,
+        is_tip: draft.is_tip ?? false,
       };
       if (result.action === "publish" && (result.tier === "속보" || result.tier === "중요")) {
         try {
@@ -306,6 +313,7 @@ const GEMINI_BATCH_SCHEMA = {
           headline_ko: { type: "STRING" },
           why_ko: { type: "STRING" },
           duplicate_of: { type: "INTEGER", nullable: true },
+          is_tip: { type: "BOOLEAN" },
         },
         required: ["id", "action", "headline_ko", "why_ko"],
       },
@@ -364,6 +372,7 @@ ${itemBlocks}`;
       headline_ko: r.headline_ko ?? "",
       why_ko: r.why_ko ?? "",
       duplicate_of: r.duplicate_of ?? null,
+      is_tip: r.is_tip ?? false,
     });
   }
 

@@ -24,6 +24,8 @@ export interface Classification {
   why_ko: string;
   /** When action is "duplicate": the DB id of the already-published story it matches. */
   duplicate_of?: number | null;
+  /** Practical tip/technique with a concrete reusable takeaway (팁 badge in the feed). */
+  is_tip?: boolean;
 }
 
 /** Compact recently-published context passed to the classifier for cross-language dedup. */
@@ -65,6 +67,8 @@ export interface FeedItem {
   whyKo: string;
   tier: Tier;
   publishedAt: string;
+  /** Practical tip/technique — rendered as a green 팁 badge. */
+  isTip?: boolean;
   /** Korean article summary (item page only — not carried in the feed list). */
   summaryKo?: string | null;
 }
