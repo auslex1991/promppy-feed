@@ -64,8 +64,11 @@ export async function fetchX(sourceId: string, maxItems = 30): Promise<RawItem[]
   const key = process.env.TWITTERAPI_KEY;
   if (!key) return [];
 
+  // Orgs: short window (announcements matter immediately, no like-threshold to
+  // wait for) — cheaper under the 15-min crawl cadence. People: 6h so tweets
+  // have time to accumulate the like threshold.
   const [orgResults, peopleResults] = await Promise.all([
-    Promise.all(chunked(ORG_ACCOUNTS).map((c) => searchChunk(key, c, "6h"))),
+    Promise.all(chunked(ORG_ACCOUNTS).map((c) => searchChunk(key, c, "2h"))),
     Promise.all(chunked(PEOPLE_ACCOUNTS).map((c) => searchChunk(key, c, "6h"))),
   ]);
   const orgs = new Set(ORG_ACCOUNTS.map((a) => a.toLowerCase()));

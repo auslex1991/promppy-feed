@@ -80,8 +80,8 @@ The classifier may also output **skip** for items that are not AI-industry-relev
 
 ## 4. Update Promise
 
-- **Crawler runs hourly**, on a fixed schedule, across the sources in SOURCES.md. (Revised from the original 15-min target to hourly on 2026-07-10 — an hour-old item is still fresh for AI news, and it cuts classification cost ~4×. Trigger: cron-job.org, with a GitHub Actions hourly backstop; Vercel Hobby crons are daily-only.)
-- Target end-to-end latency: an item appears in the feed **within ~1 hour** of source publication (hourly crawl interval + processing).
+- **Crawler runs every 15 minutes** (restored 2026-07-13 — LLM cost is per new item, not per crawl, so frequency is nearly free; the hourly period of 2026-07-10~13 was based on a cost model that conflated the two). Trigger: cron-job.org at 15-min intervals, GitHub Actions hourly backstop; Vercel Hobby crons are daily-only.
+- Target end-to-end latency: an item appears in the feed **within ~20 minutes** of source publication.
 - **Deduplication:** canonical-URL + normalized-title hash prevents re-ingesting the same item. When multiple sources cover the same story within a window (e.g. TechCrunch and The Verge on the same OpenAI announcement), the earliest/most-primary item is kept (official lab source > tier-1 media > aggregator) and later duplicates are dropped or demoted to 참고.
 - The frontend reflects new items **without a manual refresh** (client polling every 30–60s in v1; SSE/WebSocket is a later upgrade).
 - A visible **"LIVE" indicator with last-crawl timestamp** communicates the freshness promise on the page itself. If the crawler has not succeeded for > 95 minutes (1.5 hourly intervals + buffer), the indicator degrades visibly (pulsing dot turns static amber) rather than silently lying.

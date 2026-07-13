@@ -11,7 +11,7 @@ import {
   getTopForBriefing,
   saveSummary,
 } from "./db";
-import { classifyItem, gateItem, generateBriefing, summarizeArticle } from "./classify";
+import { classifyGeminiBatch, classifyItem, gateItem, generateBriefing, summarizeArticle, type BatchItem } from "./classify";
 import { fetchArticleText } from "./adapters/article";
 import type { Classification, RecentItem } from "./types";
 
@@ -41,14 +41,18 @@ export async function runCrawl(): Promise<CrawlStats> {
 
   const inserted = await insertNewItems(results.flatMap((r) => r.items));
 
-  // Classify everything still 'new' (includes retries from previously failed runs).
-  // Sequential (not parallel) so cross-language dedup sees items published earlier
-  // in THIS run too — otherwise two same-story items in one crawl both slip through.
+  // Classify everything still 'new' (includes retries from previously failed
+  // runs). Gate per-item (cheap), then classify in BATCHES of 8 so the fixed
+  // prompt overhead (rubric + dedup context) is paid per batch, not per item —
+  // and same-batch dedup is seen by the model all at once.
   const pending = await getUnclassified();
   const context: RecentItem[] = await getRecentPublished(40);
   let gatedOut = 0;
   let classified = 0;
   let duplicates = 0;
+
+  // Enrich + gate, collecting survivors for batched classification.
+  const survivors: BatchItem[] = [];
   for (const p of pending) {
     try {
       // Enrich short/empty excerpts with article text so the gate, the
@@ -59,32 +63,56 @@ export async function runCrawl(): Promise<CrawlStats> {
         const article = await fetchArticleText(p.url);
         if (article.length > excerpt.trim().length) excerpt = article;
       }
-
-      // Stage 1 — cheap Haiku relevance gate (no dedup context).
       const keep = await gateItem({ sourceId: p.source_id, title: p.title_orig, excerpt });
       if (!keep) {
         await applyClassification(p.id, SKIP);
         gatedOut++;
         continue;
       }
+      survivors.push({
+        id: p.id,
+        sourceId: p.source_id,
+        title: p.title_orig,
+        publishedAt: p.published_at,
+        excerpt,
+      });
+    } catch (e) {
+      errors.push(`gate #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
 
-      // Stage 2 — Opus finalize: tier + Korean summary + cross-language dedup.
-      const result = await classifyItem(
-        { sourceId: p.source_id, title: p.title_orig, publishedAt: p.published_at, excerpt },
-        context
-      );
+  const BATCH = 8;
+  for (let i = 0; i < survivors.length; i += BATCH) {
+    const batch = survivors.slice(i, i + BATCH);
+    let resultsMap: Map<number, Classification>;
+    try {
+      resultsMap = await classifyGeminiBatch(batch, context);
+    } catch (e) {
+      // Batch failed (Gemini outage, malformed output) — per-item path, which
+      // itself falls back to all-Claude. Never stall the feed on one provider.
+      errors.push(`batch classify: ${e instanceof Error ? e.message : String(e)} — per-item fallback`);
+      resultsMap = new Map();
+      for (const p of batch) {
+        try {
+          resultsMap.set(p.id, await classifyItem(p, context));
+        } catch (e2) {
+          errors.push(`classify #${p.id}: ${e2 instanceof Error ? e2.message : String(e2)}`);
+        }
+      }
+    }
+    for (const p of batch) {
+      const result = resultsMap.get(p.id);
+      if (!result) continue; // stays 'new' — retried next crawl
       await applyClassification(p.id, result);
       if (result.action === "publish") {
         classified++;
-        context.unshift({ id: p.id, source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
+        context.unshift({ id: p.id, source_id: p.sourceId, title_orig: p.title, headline_ko: result.headline_ko });
         // Item-page Korean summary (Gemini; "" on failure → column stays null).
-        const summary = await summarizeArticle({ sourceId: p.source_id, title: p.title_orig, text: excerpt });
+        const summary = await summarizeArticle({ sourceId: p.sourceId, title: p.title, text: p.excerpt });
         if (summary) await saveSummary(p.id, summary);
       } else if (result.action === "duplicate") {
         duplicates++;
       }
-    } catch (e) {
-      errors.push(`classify #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

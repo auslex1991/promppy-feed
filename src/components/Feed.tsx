@@ -454,7 +454,7 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
       )}
 
       <footer className="py-6 text-center font-mono-ts text-[11px] text-[#8b949e]/50">
-        <p>1시간마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다</p>
+        <p>15분마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다</p>
         <p className="mt-1 hidden sm:block text-[10px] text-[#8b949e]/40">
           단축키: j/k 이동 · Enter 펼치기 · o 원문 열기
         </p>

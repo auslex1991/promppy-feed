@@ -13,7 +13,10 @@ import { geminiJson } from "./providers/gemini";
 const GATE_MODEL = "claude-haiku-4-5";
 const MODEL = "claude-opus-4-8";
 const GEMINI_GATE_MODEL = "gemini-3.1-flash-lite";
-const GEMINI_CLASSIFY_MODEL = "gemini-3.5-flash";
+// flash-lite ($0.25/$1.50 per M) A/B'd against 3.5-flash ($1.50/$9) on real
+// items 2026-07-13: tiers consistent, headlines natural — 6× cheaper. Opus
+// polish still rewrites everything 속보/중요, so lite only carries 참고 lines.
+const GEMINI_CLASSIFY_MODEL = "gemini-3.1-flash-lite";
 const geminiEnabled = () => Boolean(process.env.GEMINI_API_KEY);
 
 // SPEC.md §3 rubric, verbatim intent. Static so prompt caching holds across the
@@ -51,6 +54,7 @@ Same-event clustering: when several items describe ONE launch event (a flagship 
 5. Research with immediate practical implications (techniques practitioners can apply now).
 6. Major Korean AI industry news: Naver, Kakao, LG AI연구원, Samsung, SKT, or Korean AI policy.
 7. Proposed (not yet effective) regulation or major government AI initiatives.
+When in doubt between 중요 and 참고, choose 참고 — 중요 requires a CLEAR practitioner impact this week, not merely an interesting item.
 
 ### 참고 (Reference) — everything relevant that doesn't meet the bars above: papers with traction, explanatory lab posts, interviews/analysis, funding < $100M, smaller launches, follow-up coverage.
 
@@ -274,6 +278,104 @@ ${input.excerpt.slice(0, 1500)}`;
   const text = response.content.find((b) => b.type === "text");
   if (!text || text.type !== "text") throw new Error("no text block in classification response");
   return JSON.parse(text.text) as Classification;
+}
+
+export interface BatchItem {
+  id: number;
+  sourceId: string;
+  title: string;
+  publishedAt: string;
+  excerpt: string;
+}
+
+const GEMINI_BATCH_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    results: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          id: { type: "INTEGER" },
+          action: { type: "STRING", enum: ["publish", "skip", "duplicate"] },
+          tier: { type: "STRING", enum: ["속보", "중요", "참고"], nullable: true },
+          headline_ko: { type: "STRING" },
+          why_ko: { type: "STRING" },
+          duplicate_of: { type: "INTEGER", nullable: true },
+        },
+        required: ["id", "action", "headline_ko", "why_ko"],
+      },
+    },
+  },
+  required: ["results"],
+};
+
+/**
+ * Batched classification: one Gemini call for up to ~8 items, so the fixed
+ * overhead (rubric + dedup context, ~4K tokens) is paid once per batch
+ * instead of once per item. The model also sees same-batch items together,
+ * which makes same-crawl dedup direct instead of incremental. Opus polish is
+ * applied per-item to 속보/중요 results, same as the single-item path.
+ * Throws on batch failure — the caller falls back to per-item classifyItem.
+ */
+export async function classifyGeminiBatch(
+  items: BatchItem[],
+  recent: RecentItem[]
+): Promise<Map<number, Classification>> {
+  const itemBlocks = items
+    .map(
+      (p) => `[item id=${p.id}]
+source: ${SOURCE_NAMES[p.sourceId] ?? p.sourceId}
+published: ${p.publishedAt}
+headline: ${p.title}
+body (may be truncated):
+${p.excerpt.slice(0, 1500)}`
+    )
+    .join("\n\n");
+  const userContent = `[stories already in the feed — mark a new item "duplicate" if it covers the same event as any of these]
+${formatRecentContext(recent)}
+
+[new items to classify — return one result per item id, in order. Items later in this batch may duplicate EARLIER ITEMS IN THIS BATCH: if so, mark them duplicate with duplicate_of set to that earlier item's id.]
+
+${itemBlocks}`;
+
+  const out = await geminiJson<{ results: Array<Classification & { id: number }> }>(
+    GEMINI_CLASSIFY_MODEL,
+    SYSTEM_PROMPT,
+    userContent,
+    GEMINI_BATCH_SCHEMA,
+    4096,
+    400
+  );
+
+  const map = new Map<number, Classification>();
+  for (const r of out.results ?? []) {
+    if (!items.some((p) => p.id === r.id)) continue; // hallucinated id — drop
+    map.set(r.id, {
+      action: r.action ?? "skip",
+      tier: r.tier ?? null,
+      headline_ko: r.headline_ko ?? "",
+      why_ko: r.why_ko ?? "",
+      duplicate_of: r.duplicate_of ?? null,
+    });
+  }
+
+  // Opus polish for the high-visibility tiers, per item.
+  for (const p of items) {
+    const r = map.get(p.id);
+    if (!r || r.action !== "publish" || (r.tier !== "속보" && r.tier !== "중요")) continue;
+    try {
+      const polished = await polishItem(
+        { sourceId: p.sourceId, title: p.title, excerpt: p.excerpt },
+        { headline_ko: r.headline_ko, why_ko: r.why_ko, tier: r.tier }
+      );
+      r.headline_ko = polished.headline_ko || r.headline_ko;
+      r.why_ko = polished.why_ko || r.why_ko;
+    } catch {
+      // keep the draft
+    }
+  }
+  return map;
 }
 
 /**
