@@ -4,11 +4,13 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem, FeedPayload, Tier } from "@/lib/types";
 import CopyLinkButton from "./CopyLinkButton";
 import FeedbackButton from "./FeedbackButton";
+import Ticker from "./Ticker";
 
 const POLL_MS = 45_000;
-// Crawl cadence is hourly (cron-job.org); allow 1.5 intervals + buffer before
-// the LIVE indicator degrades, so a healthy hourly schedule never shows 지연.
-const STALE_MS = 95 * 60_000;
+// Primary cadence is 15 min (cron-job.org), but the backstop is the HOURLY
+// GitHub Action — keep the LIVE threshold above one backstop interval so a
+// cron-job.org outage covered by the backstop doesn't flap to 지연.
+const STALE_MS = 75 * 60_000;
 
 const TIER_STYLE: Record<Tier, { badge: string; accent: string }> = {
   속보: { badge: "bg-[#ff4d4f]/15 text-[#ff4d4f] border-[#ff4d4f]/40", accent: "border-l-[#ff4d4f]" },
@@ -286,6 +288,8 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
           );
         })}
       </nav>
+
+      <Ticker items={items} now={now} />
 
       {pendingCount > 0 && (
         <button

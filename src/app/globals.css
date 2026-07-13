@@ -70,6 +70,57 @@ body {
   animation: item-flash 2.5s ease-out 1;
 }
 
+/* 속보/중요 headline marquee (news-wire strip under the filter bar) */
+.ticker {
+  overflow: hidden;
+  white-space: nowrap;
+  padding: 6px 0;
+}
+.ticker-track {
+  display: inline-flex;
+  animation: ticker-scroll linear infinite;
+  will-change: transform;
+}
+.ticker:hover .ticker-track {
+  animation-play-state: paused;
+}
+.ticker-half {
+  display: inline-flex;
+}
+.ticker-entry {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-right: 2.5rem;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-decoration: none;
+}
+.ticker-entry:hover .ticker-headline {
+  color: #e6edf3;
+  text-decoration: underline;
+}
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ticker {
+    overflow-x: auto;
+  }
+  .ticker-track {
+    animation: none;
+  }
+  /* the duplicate strip exists only for the seamless loop */
+  .ticker-half[aria-hidden] {
+    display: none;
+  }
+}
+
 /* LIVE dot pulse */
 @keyframes live-pulse {
   0%,
