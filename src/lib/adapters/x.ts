@@ -29,6 +29,10 @@ const PEOPLE_ACCOUNTS = [
   "emollick", "rowancheung", "mckaywrigley", "goodside", "jeremyphoward",
   "hwchase17", "bindureddy", "minchoi", "levelsio", "LinusEkenstam",
   "gdb", "simonw", "aidan_mclau", "nearcyan",
+  // User-curated batch (2026-07-14) — AI content/tips accounts.
+  "charliejhills", "MyWestLord", "ahmedrann", "0xJeff", "AnatoliKopadze",
+  "ai_explorer25", "undefinedKi", "humzaakhalid", "cyrilXBT", "Star_Knight12",
+  "CodeswithClara",
 ];
 
 // The LLM gate judges substance from here — 50 likes is "people noticed",
