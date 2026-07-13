@@ -21,19 +21,25 @@ async function main() {
   console.log(`backfilling summaries for ${rows.length} items…`);
   let ok = 0,
     skipped = 0;
-  for (const r of rows) {
-    let text: string = r.excerpt ?? "";
-    if (text.trim().length < 400 && r.source_id !== "x" && r.source_id !== "reddit") {
-      const article = await fetchArticleText(r.url);
-      if (article.length > text.trim().length) text = article;
-    }
-    const summary = await summarizeArticle({ sourceId: r.source_id, title: r.title_orig, text });
-    if (summary) {
-      await pool.query(`UPDATE items SET summary_ko = $1 WHERE id = $2`, [summary, r.id]);
-      ok++;
-    } else {
-      skipped++; // too little text to summarize honestly
-    }
+  const CONCURRENCY = 6;
+  for (let i = 0; i < rows.length; i += CONCURRENCY) {
+    await Promise.all(
+      rows.slice(i, i + CONCURRENCY).map(async (r) => {
+        let text: string = r.excerpt ?? "";
+        if (text.trim().length < 400 && r.source_id !== "x" && r.source_id !== "reddit") {
+          const article = await fetchArticleText(r.url);
+          if (article.length > text.trim().length) text = article;
+        }
+        const summary = await summarizeArticle({ sourceId: r.source_id, title: r.title_orig, text });
+        if (summary) {
+          await pool.query(`UPDATE items SET summary_ko = $1 WHERE id = $2`, [summary, r.id]);
+          ok++;
+        } else {
+          skipped++; // too little text to summarize honestly
+        }
+      })
+    );
+    console.log(`  progress: ${Math.min(i + CONCURRENCY, rows.length)}/${rows.length}`);
   }
   console.log(`done — summarized ${ok}, skipped (insufficient text) ${skipped}`);
   await pool.end();

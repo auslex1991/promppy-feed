@@ -287,7 +287,8 @@ export async function summarizeArticle(input: {
       1024
     );
     return (out.summary_ko ?? "").trim();
-  } catch {
+  } catch (e) {
+    console.error("summarizeArticle failed:", e instanceof Error ? e.message : e);
     return "";
   }
 }
