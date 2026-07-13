@@ -41,10 +41,26 @@ const PEOPLE_WINDOW = "12h";
 // VIRAL_MIN_LIKES re-checks client-side in case the operator is ever ignored
 // upstream — without it, a keyword this broad would flood the pipeline.
 const VIRAL_MIN_LIKES = 500;
+// Keyword note: X search matches whole tokens — "ChatGPT" does NOT match
+// "GPT" (a real viral pricing-comparison tweet slipped through on this),
+// so common model/tool names are listed individually.
 const VIRAL_QUERY =
-  `(OpenAI OR Anthropic OR Claude OR ChatGPT OR Gemini OR LLM OR DeepSeek OR ` +
-  `Qwen OR "open weights" OR "AI agent" OR AGI) ` +
-  `min_faves:${VIRAL_MIN_LIKES} -filter:replies lang:en`;
+  `(OpenAI OR Anthropic OR Claude OR ChatGPT OR GPT OR Gemini OR Grok OR ` +
+  `LLM OR DeepSeek OR Qwen OR Llama OR Mistral OR Cursor OR Copilot OR ` +
+  `"open weights" OR "AI agent" OR "AI coding" OR AGI) ` +
+  // -"@grok" drops the huge "hey @grok do X" bot-summons meme class, which
+  // otherwise dominates viral matches. Grok NEWS still matches on "Grok".
+  `min_faves:${VIRAL_MIN_LIKES} -filter:replies -"@grok" lang:en`;
+// The 24h sweep raises the bar so its match volume fits in a few pages —
+// at min_faves:500 a full day has hundreds of matches and pagination costs
+// more than the slow-burners are worth. NOTE: X's search index lags live
+// engagement (a ♥2.7K tweet indexed at ~1-1.5K), so the bar stays well below
+// the "actually viral" level we're targeting.
+const SWEEP_MIN_LIKES = 1000;
+const SWEEP_QUERY = VIRAL_QUERY.replace(
+  `min_faves:${VIRAL_MIN_LIKES}`,
+  `min_faves:${SWEEP_MIN_LIKES}`
+);
 
 // X's search query caps out around 512 chars — chunk the account list so each
 // query stays comfortably under it, one search call per chunk per crawl.
@@ -60,15 +76,24 @@ interface XTweet {
   author?: { userName?: string };
 }
 
-async function search(key: string, query: string): Promise<XTweet[]> {
-  const url = `https://api.twitterapi.io/twitter/tweet/advanced_search?queryType=Latest&query=${encodeURIComponent(query)}`;
-  const res = await fetch(url, {
-    headers: { "X-API-Key": key },
-    signal: AbortSignal.timeout(20000),
-  });
-  if (!res.ok) throw new Error(`twitterapi.io HTTP ${res.status}`);
-  const data = (await res.json()) as { tweets?: XTweet[] };
-  return data.tweets ?? [];
+async function search(key: string, query: string, pages = 1): Promise<XTweet[]> {
+  const out: XTweet[] = [];
+  let cursor = "";
+  for (let page = 0; page < pages; page++) {
+    const url =
+      `https://api.twitterapi.io/twitter/tweet/advanced_search?queryType=Latest` +
+      `&query=${encodeURIComponent(query)}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const res = await fetch(url, {
+      headers: { "X-API-Key": key },
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`twitterapi.io HTTP ${res.status}`);
+    const data = (await res.json()) as { tweets?: XTweet[]; has_next_page?: boolean; next_cursor?: string };
+    out.push(...(data.tweets ?? []));
+    if (!data.has_next_page || !data.next_cursor) break;
+    cursor = data.next_cursor;
+  }
+  return out;
 }
 
 function accountQueries(accounts: string[], window: string): string[] {
@@ -84,12 +109,20 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
   // Orgs: short window (announcements matter immediately, no like-threshold to
   // wait for) — cheaper under the 15-min crawl cadence. People: 12h so tweets
   // have time to accumulate the like threshold. Viral: open search, anyone.
-  const queries = [
-    ...accountQueries(ORG_ACCOUNTS, "2h"),
-    ...accountQueries(PEOPLE_ACCOUNTS, PEOPLE_WINDOW),
-    `${VIRAL_QUERY} within_time:6h`,
+  const searches = [
+    ...accountQueries(ORG_ACCOUNTS, "2h").map((q) => search(key, q)),
+    ...accountQueries(PEOPLE_ACCOUNTS, PEOPLE_WINDOW).map((q) => search(key, q)),
+    search(key, `${VIRAL_QUERY} within_time:6h`),
   ];
-  const results = await Promise.all(queries.map((q) => search(key, q)));
+  // Slow-burn sweep: a tweet that crosses the viral bar 8+ hours after posting
+  // never appears in the 6h window. 4×/day, sweep 24h at a higher bar with
+  // pagination — results are Latest-ordered 20/page, so without extra pages an
+  // older banger never surfaces. URL dedup absorbs the overlap.
+  const now = new Date();
+  if (now.getHours() % 6 === 0 && now.getMinutes() < 15) {
+    searches.push(search(key, `${SWEEP_QUERY} within_time:24h`, 8));
+  }
+  const results = await Promise.all(searches);
   const orgs = new Set(ORG_ACCOUNTS.map((a) => a.toLowerCase()));
   const roster = new Set(
     [...ORG_ACCOUNTS, ...PEOPLE_ACCOUNTS].map((a) => a.toLowerCase())
