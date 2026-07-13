@@ -22,6 +22,13 @@ function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+export interface GeminiCallOpts {
+  /** Per-attempt fetch timeout. Callers on the crawl's clock keep this tight. */
+  timeoutMs?: number;
+  /** Total attempts including the first (retries on 503/429/network). */
+  attempts?: number;
+}
+
 async function generate(
   model: string,
   system: string,
@@ -34,7 +41,8 @@ async function generate(
   // outputs (summaries) got silently truncated mid-JSON (finishReason
   // MAX_TOKENS), which JSON.parse then throws on. Capping the thinking
   // budget leaves the rest of maxOutputTokens for the actual answer.
-  thinkingBudget = 200
+  thinkingBudget = 200,
+  opts: GeminiCallOpts = {}
 ): Promise<string> {
   const body = JSON.stringify({
     systemInstruction: { parts: [{ text: system }] },
@@ -46,7 +54,8 @@ async function generate(
     },
   });
 
-  const MAX_ATTEMPTS = 3;
+  const MAX_ATTEMPTS = opts.attempts ?? 3;
+  const timeoutMs = opts.timeoutMs ?? 45000;
   let lastErr: Error = new Error("unreachable");
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     try {
@@ -54,7 +63,7 @@ async function generate(
         method: "POST",
         headers: { "x-goog-api-key": key(), "Content-Type": "application/json" },
         body,
-        signal: AbortSignal.timeout(45000),
+        signal: AbortSignal.timeout(timeoutMs),
       });
       // 503 (overloaded) / 429 (rate limited) are transient — retry with backoff,
       // matching the pattern Anthropic's SDK applies automatically.
@@ -92,8 +101,9 @@ export async function geminiJson<T>(
   user: string,
   responseSchema: object,
   maxOutputTokens = 1024,
-  thinkingBudget = 200
+  thinkingBudget = 200,
+  opts: GeminiCallOpts = {}
 ): Promise<T> {
-  const text = await generate(model, system, user, responseSchema, maxOutputTokens, thinkingBudget);
+  const text = await generate(model, system, user, responseSchema, maxOutputTokens, thinkingBudget, opts);
   return JSON.parse(text) as T;
 }

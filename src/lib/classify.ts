@@ -132,7 +132,11 @@ export async function gateItem(input: {
         GATE_PROMPT,
         user,
         { type: "OBJECT", properties: { keep: { type: "BOOLEAN" } }, required: ["keep"] },
-        64
+        256,
+        100,
+        // Fail-open semantics make retries pointless here — keep the gate fast
+        // so a Gemini incident can't eat the crawl's wall-clock budget.
+        { timeoutMs: 12000, attempts: 1 }
       );
       return out.keep;
     } catch {
@@ -345,7 +349,10 @@ ${itemBlocks}`;
     userContent,
     GEMINI_BATCH_SCHEMA,
     4096,
-    400
+    400,
+    // One big call per batch — worth a generous per-attempt timeout, but only
+    // 2 attempts so a Gemini incident degrades to the per-item fallback fast.
+    { timeoutMs: 75000, attempts: 2 }
   );
 
   const map = new Map<number, Classification>();
@@ -396,7 +403,9 @@ export async function summarizeArticle(input: {
 규칙: 사실 위주, 구체적 수치·제품명·날짜 유지(제품·모델명은 원문 표기), 기사에 없는 내용 추가 금지, 서두("이 기사는...") 없이 바로 내용부터, 실무자가 알아야 할 핵심 순서로.`,
       `출처: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}\n제목: ${input.title}\n본문:\n${input.text.slice(0, 4000)}`,
       { type: "OBJECT", properties: { summary_ko: { type: "STRING" } }, required: ["summary_ko"] },
-      1024
+      1024,
+      200,
+      { timeoutMs: 25000, attempts: 1 } // optional enrichment — never worth stalling the crawl
     );
     return (out.summary_ko ?? "").trim();
   } catch (e) {

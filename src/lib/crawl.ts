@@ -31,6 +31,11 @@ export interface CrawlStats {
 export async function runCrawl(): Promise<CrawlStats> {
   const runId = await startRun();
   const errors: string[] = [];
+  // Wall-clock budget: Vercel kills the function at maxDuration (300s), which
+  // previously left runs unfinished and items re-processing forever during a
+  // provider incident. Stop classifying at 230s and finish cleanly — leftovers
+  // stay 'new' and the next crawl (15-min cadence) picks them up.
+  const deadline = Date.now() + 230_000;
 
   // Fetch every source concurrently; one failure never fails the run (SOURCES.md).
   const results = await Promise.all(SOURCES.map(fetchSource));
@@ -54,6 +59,10 @@ export async function runCrawl(): Promise<CrawlStats> {
   // Enrich + gate, collecting survivors for batched classification.
   const survivors: BatchItem[] = [];
   for (const p of pending) {
+    if (Date.now() > deadline) {
+      errors.push("time budget reached during gating — remaining items deferred to next crawl");
+      break;
+    }
     try {
       // Enrich short/empty excerpts with article text so the gate, the
       // classification, and the item-page summary judge from real body text.
@@ -83,6 +92,10 @@ export async function runCrawl(): Promise<CrawlStats> {
 
   const BATCH = 8;
   for (let i = 0; i < survivors.length; i += BATCH) {
+    if (Date.now() > deadline) {
+      errors.push("time budget reached during classification — remaining items deferred to next crawl");
+      break;
+    }
     const batch = survivors.slice(i, i + BATCH);
     let resultsMap: Map<number, Classification>;
     try {
@@ -108,8 +121,10 @@ export async function runCrawl(): Promise<CrawlStats> {
         classified++;
         context.unshift({ id: p.id, source_id: p.sourceId, title_orig: p.title, headline_ko: result.headline_ko });
         // Item-page Korean summary (Gemini; "" on failure → column stays null).
-        const summary = await summarizeArticle({ sourceId: p.sourceId, title: p.title, text: p.excerpt });
-        if (summary) await saveSummary(p.id, summary);
+        if (Date.now() < deadline) {
+          const summary = await summarizeArticle({ sourceId: p.sourceId, title: p.title, text: p.excerpt });
+          if (summary) await saveSummary(p.id, summary);
+        }
       } else if (result.action === "duplicate") {
         duplicates++;
       }
