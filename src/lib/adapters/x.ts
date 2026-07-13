@@ -9,17 +9,24 @@ import type { RawItem } from "../types";
  * within_time:3h overlaps the hourly crawl on purpose; URL dedup drops
  * re-seen tweets. Missing TWITTERAPI_KEY disables the source silently.
  */
-const ACCOUNTS = [
-  // labs & orgs
+// Org accounts post announcements — every non-reply passes to the gate.
+const ORG_ACCOUNTS = [
   "OpenAI", "AnthropicAI", "GoogleDeepMind", "xai", "AIatMeta", "MistralAI",
   "huggingface", "cursor_ai",
-  // researchers & builders
+];
+
+// Personal accounts mix real signal with daily chatter (lunch, lifestyle,
+// banter) — only tweets with real engagement enter the pipeline. The wider
+// 6h window gives tweets time to accumulate likes; URL dedup absorbs the
+// hourly re-fetch overlap.
+const PEOPLE_ACCOUNTS = [
   "sama", "karpathy", "ylecun", "demishassabis", "DrJimFan", "_akhaliq",
   "swyx", "OfficialLoganK", "alexalbert__", "AndrewYNg",
-  // popular AI influencers/commentators (added 2026-07-13)
   "emollick", "rowancheung", "mckaywrigley", "goodside", "jeremyphoward",
   "hwchase17", "bindureddy", "minchoi", "levelsio", "LinusEkenstam",
 ];
+
+const MIN_LIKES_PEOPLE = 100;
 
 // X's search query caps out around 512 chars — chunk the account list so each
 // query stays comfortably under it, one search call per chunk per crawl.
@@ -35,8 +42,8 @@ interface XTweet {
   author?: { userName?: string };
 }
 
-async function searchChunk(key: string, accounts: string[]): Promise<XTweet[]> {
-  const query = `(${accounts.map((a) => `from:${a}`).join(" OR ")}) within_time:3h`;
+async function searchChunk(key: string, accounts: string[], window: string): Promise<XTweet[]> {
+  const query = `(${accounts.map((a) => `from:${a}`).join(" OR ")}) within_time:${window}`;
   const url = `https://api.twitterapi.io/twitter/tweet/advanced_search?queryType=Latest&query=${encodeURIComponent(query)}`;
   const res = await fetch(url, {
     headers: { "X-API-Key": key },
@@ -47,19 +54,30 @@ async function searchChunk(key: string, accounts: string[]): Promise<XTweet[]> {
   return data.tweets ?? [];
 }
 
+function chunked(accounts: string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let i = 0; i < accounts.length; i += CHUNK_SIZE) chunks.push(accounts.slice(i, i + CHUNK_SIZE));
+  return chunks;
+}
+
 export async function fetchX(sourceId: string, maxItems = 30): Promise<RawItem[]> {
   const key = process.env.TWITTERAPI_KEY;
   if (!key) return [];
 
-  const chunks: string[][] = [];
-  for (let i = 0; i < ACCOUNTS.length; i += CHUNK_SIZE) chunks.push(ACCOUNTS.slice(i, i + CHUNK_SIZE));
-  const results = await Promise.all(chunks.map((c) => searchChunk(key, c)));
-  const tweets = results.flat();
+  const [orgResults, peopleResults] = await Promise.all([
+    Promise.all(chunked(ORG_ACCOUNTS).map((c) => searchChunk(key, c, "6h"))),
+    Promise.all(chunked(PEOPLE_ACCOUNTS).map((c) => searchChunk(key, c, "6h"))),
+  ]);
+  const orgs = new Set(ORG_ACCOUNTS.map((a) => a.toLowerCase()));
+  const tweets = [...orgResults.flat(), ...peopleResults.flat()];
 
   return tweets
     .filter((t) => {
       const text = t.text ?? "";
-      return t.url && text.length > 30 && !t.isReply && !text.startsWith("RT @");
+      if (!t.url || text.length <= 30 || t.isReply || text.startsWith("RT @")) return false;
+      // Personal accounts must show real engagement; org announcements pass.
+      const isOrg = orgs.has((t.author?.userName ?? "").toLowerCase());
+      return isOrg || (t.likeCount ?? 0) >= MIN_LIKES_PEOPLE;
     })
     .slice(0, maxItems)
     .map((t) => {
