@@ -43,7 +43,7 @@ export function clampFuture(iso: string | null): string {
 // everything else 10%.
 export const SOURCE_CAPS: { default: number; perSource: Record<string, number> } = {
   default: 10,
-  perSource: { reddit: 20 },
+  perSource: { reddit: 20, x: 12 },
 };
 
 /**

@@ -2,6 +2,7 @@ import type { RawItem, SourceResult } from "./types";
 import { fetchRss } from "./adapters/rss";
 import { fetchHackerNews } from "./adapters/hn";
 import { fetchReddit } from "./adapters/reddit";
+import { fetchX } from "./adapters/x";
 import { fetchHfPapers } from "./adapters/hfPapers";
 import { fetchGithubChangelog } from "./adapters/githubChangelog";
 import { fetchScrape } from "./adapters/scrape";
@@ -70,6 +71,7 @@ export const SOURCES: SourceDef[] = [
         50
       ),
   },
+  { id: "x", name: "X", fetch: (id) => fetchX(id) },
   { id: "simonw", name: "Simon Willison", preFilter: true, fetch: (id) => fetchRss(id, "https://simonwillison.net/atom/everything/") },
   { id: "hf-blog", name: "HF Blog", fetch: (id) => fetchRss(id, "https://huggingface.co/blog/feed.xml") },
   { id: "hf-papers", name: "HF Papers", fetch: (id) => fetchHfPapers(id) },

@@ -1,11 +1,20 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { Classification, RecentItem } from "./types";
 import { SOURCE_NAMES } from "./sources";
+import { geminiJson } from "./providers/gemini";
 
-// Two-stage: a cheap Haiku relevance gate filters obvious skips (no dedup
-// context) before the expensive Opus call writes the tier + Korean summary.
+// Cost-optimized hybrid (active when GEMINI_API_KEY is set; falls back to the
+// all-Claude path otherwise):
+//   gate      → Gemini Flash-Lite  (cheap keep/drop, no dedup context)
+//   classify  → Gemini Flash       (tier + dedup + Korean draft)
+//   polish    → Claude Opus        (rewrites headline/why for 속보/중요 only —
+//                                   the rows readers actually scan)
+//   briefing  → Claude Opus        (1 call/day)
 const GATE_MODEL = "claude-haiku-4-5";
 const MODEL = "claude-opus-4-8";
+const GEMINI_GATE_MODEL = "gemini-3.1-flash-lite";
+const GEMINI_CLASSIFY_MODEL = "gemini-3.5-flash";
+const geminiEnabled = () => Boolean(process.env.GEMINI_API_KEY);
 
 // SPEC.md §3 rubric, verbatim intent. Static so prompt caching holds across the
 // batch of calls each crawl cycle fires (SPEC.md §5).
@@ -97,27 +106,38 @@ const GATE_SCHEMA = {
 };
 
 /**
- * Stage 1: cheap Haiku relevance gate. No dedup context, minimal output — used
- * to drop obvious skips before the expensive Opus finalize call. Fails open
- * (keep=true) so a gate error never silently loses a real item.
+ * Stage 1: cheap relevance gate (Gemini Flash-Lite when configured, else
+ * Haiku). No dedup context, minimal output — drops obvious skips before the
+ * expensive classify call. Fails open (keep=true) so a gate error never
+ * silently loses a real item.
  */
 export async function gateItem(input: {
   sourceId: string;
   title: string;
   excerpt: string;
 }): Promise<boolean> {
+  const user = `source: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}\ntitle: ${input.title}\n${input.excerpt.slice(0, 600)}`;
+  if (geminiEnabled()) {
+    try {
+      const out = await geminiJson<{ keep: boolean }>(
+        GEMINI_GATE_MODEL,
+        GATE_PROMPT,
+        user,
+        { type: "OBJECT", properties: { keep: { type: "BOOLEAN" } }, required: ["keep"] },
+        64
+      );
+      return out.keep;
+    } catch {
+      return true; // fail open
+    }
+  }
   try {
     const response = await getClient().messages.create({
       model: GATE_MODEL,
       max_tokens: 16,
       system: GATE_PROMPT,
       output_config: { format: { type: "json_schema", schema: GATE_SCHEMA } },
-      messages: [
-        {
-          role: "user",
-          content: `source: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}\ntitle: ${input.title}\n${input.excerpt.slice(0, 600)}`,
-        },
-      ],
+      messages: [{ role: "user", content: user }],
     });
     if (response.stop_reason === "refusal") return true;
     const text = response.content.find((b) => b.type === "text");
@@ -128,19 +148,67 @@ export async function gateItem(input: {
   }
 }
 
+const GEMINI_CLASSIFY_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    action: { type: "STRING", enum: ["publish", "skip", "duplicate"] },
+    tier: { type: "STRING", enum: ["속보", "중요", "참고"], nullable: true },
+    headline_ko: { type: "STRING" },
+    why_ko: { type: "STRING" },
+    duplicate_of: { type: "INTEGER", nullable: true },
+  },
+  required: ["action", "headline_ko", "why_ko"],
+};
+
+const POLISH_PROMPT = `당신은 promppy(한국 AI 실무자를 위한 실시간 AI 뉴스 터미널)의 최종 데스크입니다. 초안 헤드라인과 시사점을 최고 품질의 한국어로 다듬어 완성하세요.
+
+규칙:
+- headline_ko: 자연스러운 한국어 헤드라인 (기계 번역투 금지). 널리 쓰이는 제품·모델명은 원문 유지 (GPT-5, Claude, Cursor, Llama — 음차 금지).
+- why_ko: 정확히 한 줄, 최대 80자. 한국 AI 실무자에게의 '시사점' — 무엇이 달라지고 무엇을 검토해야 하는지. 헤드라인 재진술 절대 금지. 예시 톤: "기존 GPT-5 대비 입력 토큰 40% 인하. OpenAI API 쓰는 서비스라면 마이그레이션 검토 가치 있음."
+- 초안이 이미 훌륭하면 최소 수정만 하세요.`;
+
+const POLISH_SCHEMA = {
+  type: "object" as const,
+  properties: { headline_ko: { type: "string" }, why_ko: { type: "string" } },
+  required: ["headline_ko", "why_ko"],
+  additionalProperties: false,
+};
+
+/** Opus rewrite of the visible Korean lines — only for 속보/중요 items. */
+async function polishItem(
+  input: { sourceId: string; title: string; excerpt: string },
+  draft: { headline_ko: string; why_ko: string; tier: string }
+): Promise<{ headline_ko: string; why_ko: string }> {
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 512,
+    system: [{ type: "text", text: POLISH_PROMPT, cache_control: { type: "ephemeral" } }],
+    output_config: { format: { type: "json_schema", schema: POLISH_SCHEMA } },
+    messages: [
+      {
+        role: "user",
+        content: `출처: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}
+등급: ${draft.tier}
+원문 제목: ${input.title}
+본문 일부: ${input.excerpt.slice(0, 800)}
+
+[초안]
+headline_ko: ${draft.headline_ko}
+why_ko: ${draft.why_ko}`,
+      },
+    ],
+  });
+  if (response.stop_reason === "refusal") return draft;
+  const text = response.content.find((b) => b.type === "text");
+  if (!text || text.type !== "text") return draft;
+  return JSON.parse(text.text) as { headline_ko: string; why_ko: string };
+}
+
 export async function classifyItem(
   input: { sourceId: string; title: string; publishedAt: string; excerpt: string },
   recent: RecentItem[] = []
 ): Promise<Classification> {
-  const response = await getClient().messages.create({
-    model: MODEL,
-    max_tokens: 1024,
-    system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-    output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
-    messages: [
-      {
-        role: "user",
-        content: `[stories already in the feed — mark the new item "duplicate" if it covers the same event as any of these]
+  const userContent = `[stories already in the feed — mark the new item "duplicate" if it covers the same event as any of these]
 ${formatRecentContext(recent)}
 
 [new item to classify]
@@ -148,9 +216,46 @@ source: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}
 published: ${input.publishedAt}
 headline: ${input.title}
 body (may be truncated):
-${input.excerpt.slice(0, 1500)}`,
-      },
-    ],
+${input.excerpt.slice(0, 1500)}`;
+
+  if (geminiEnabled()) {
+    // Gemini drafts everything; Opus polishes only the high-visibility tiers.
+    const draft = await geminiJson<Classification>(
+      GEMINI_CLASSIFY_MODEL,
+      SYSTEM_PROMPT,
+      userContent,
+      GEMINI_CLASSIFY_SCHEMA,
+      1024
+    );
+    const result: Classification = {
+      action: draft.action ?? "skip",
+      tier: draft.tier ?? null,
+      headline_ko: draft.headline_ko ?? "",
+      why_ko: draft.why_ko ?? "",
+      duplicate_of: draft.duplicate_of ?? null,
+    };
+    if (result.action === "publish" && (result.tier === "속보" || result.tier === "중요")) {
+      try {
+        const polished = await polishItem(input, {
+          headline_ko: result.headline_ko,
+          why_ko: result.why_ko,
+          tier: result.tier,
+        });
+        result.headline_ko = polished.headline_ko || result.headline_ko;
+        result.why_ko = polished.why_ko || result.why_ko;
+      } catch {
+        // keep the Gemini draft — a missed polish is not worth losing the item
+      }
+    }
+    return result;
+  }
+
+  const response = await getClient().messages.create({
+    model: MODEL,
+    max_tokens: 1024,
+    system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
+    output_config: { format: { type: "json_schema", schema: OUTPUT_SCHEMA } },
+    messages: [{ role: "user", content: userContent }],
   });
   if (response.stop_reason === "refusal") {
     // Treat as unclassifiable rather than crashing the run.

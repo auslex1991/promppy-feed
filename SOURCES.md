@@ -39,9 +39,9 @@ High volume; the relevance filter and dedup do real work here. Media items lose 
 | 10d | Wired AI | https://www.wired.com/tag/ai/ | RSS: `https://www.wired.com/feed/tag/ai/latest/rss` ✅ | 2–5/day | Added 2026-07-10. |
 | ~~10e~~ | ~~The Decoder~~ | https://the-decoder.com | **Dropped** | — | Feed blocks Node HTTP clients (TLS-fingerprint filtering; responds to curl only). Revisit if they open up. |
 
-## Group C — Community & aggregators (6)
+## Group C — Community & aggregators (7)
 
-> **X/Twitter is deliberately absent:** the free API tier cannot read/search tweets, paid read access starts at ~$200/month, and scraping violates X's ToS. HN + Reddit + GeekNews capture most virally-trending AI content within hours. Revisit if the budget justifies a paid X integration.
+> **X/Twitter (added 2026-07-13):** integrated via **twitterapi.io** (third-party X data vendor, ~$0.15/1K tweets — the official API's read pricing is prohibitive at $200+/mo). One `advanced_search` call per crawl covers a curated list of ~18 high-signal accounts (labs: OpenAI, AnthropicAI, GoogleDeepMind, xai, AIatMeta, MistralAI, huggingface, cursor_ai; individuals: sama, karpathy, ylecun, demishassabis, DrJimFan, _akhaliq, swyx, OfficialLoganK, alexalbert__, AndrewYNg) with a 3h window. Estimated cost <$2/mo. Display cap 12. Known caveat: the vendor scrapes X (gray-market dependency) — the adapter fails gracefully if it's ever disrupted. Account list lives in `src/lib/adapters/x.ts`.
 
 | # | Source | URL | Ingestion | Frequency | Notes |
 |---|--------|-----|-----------|-----------|-------|
