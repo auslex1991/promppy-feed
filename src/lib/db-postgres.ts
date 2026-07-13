@@ -49,6 +49,7 @@ function ensureSchema(): Promise<void> {
         errors TEXT NOT NULL DEFAULT '[]'
       );
       ALTER TABLE items ADD COLUMN IF NOT EXISTS dup_of INTEGER;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS summary_ko TEXT;
       CREATE INDEX IF NOT EXISTS idx_items_dup_of ON items(dup_of);
       CREATE TABLE IF NOT EXISTS feedback (
         id SERIAL PRIMARY KEY,
@@ -196,7 +197,7 @@ export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko
 export async function getItem(id: number): Promise<FeedItem | null> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko
      FROM items WHERE id = $1 AND status = 'published'`,
     [id]
   );
@@ -212,7 +213,12 @@ export async function getItem(id: number): Promise<FeedItem | null> {
     whyKo: r.why_ko,
     tier: r.tier as Tier,
     publishedAt: new Date(r.published_at).toISOString(),
+    summaryKo: r.summary_ko ?? null,
   };
+}
+
+export async function saveSummary(id: number, summaryKo: string): Promise<void> {
+  await getPool().query(`UPDATE items SET summary_ko = $1 WHERE id = $2`, [summaryKo, id]);
 }
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {

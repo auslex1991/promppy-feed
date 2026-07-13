@@ -76,6 +76,16 @@ export default async function ItemPage({ params }: Props) {
 
         <p className="mt-4 text-[15px] leading-relaxed text-[#c9d1d9]">{item.whyKo}</p>
 
+        {item.summaryKo && (
+          <div className="mt-6 border-t border-[#161b22] pt-5">
+            <h2 className="font-mono-ts text-xs font-semibold text-[#8b949e]">요약</h2>
+            <p className="mt-2 text-[14px] leading-relaxed text-[#c9d1d9]">{item.summaryKo}</p>
+            <p className="mt-2 font-mono-ts text-[10px] text-[#8b949e]/50">
+              AI가 원문을 요약한 내용으로, 부정확할 수 있습니다.
+            </p>
+          </div>
+        )}
+
         <div className="mt-6 border-t border-[#161b22] pt-4 text-[13px] text-[#8b949e]">
           <p>
             <span className="font-mono-ts text-[11px] text-[#8b949e]/60">원문 제목 </span>

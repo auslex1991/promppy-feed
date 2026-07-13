@@ -65,4 +65,6 @@ export interface FeedItem {
   whyKo: string;
   tier: Tier;
   publishedAt: string;
+  /** Korean article summary (item page only — not carried in the feed list). */
+  summaryKo?: string | null;
 }

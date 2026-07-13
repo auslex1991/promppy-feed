@@ -13,10 +13,17 @@ const ACCOUNTS = [
   // labs & orgs
   "OpenAI", "AnthropicAI", "GoogleDeepMind", "xai", "AIatMeta", "MistralAI",
   "huggingface", "cursor_ai",
-  // high-signal individuals
+  // researchers & builders
   "sama", "karpathy", "ylecun", "demishassabis", "DrJimFan", "_akhaliq",
   "swyx", "OfficialLoganK", "alexalbert__", "AndrewYNg",
+  // popular AI influencers/commentators (added 2026-07-13)
+  "emollick", "rowancheung", "mckaywrigley", "goodside", "jeremyphoward",
+  "hwchase17", "bindureddy", "minchoi", "levelsio", "LinusEkenstam",
 ];
+
+// X's search query caps out around 512 chars — chunk the account list so each
+// query stays comfortably under it, one search call per chunk per crawl.
+const CHUNK_SIZE = 14;
 
 interface XTweet {
   id: string;
@@ -28,11 +35,8 @@ interface XTweet {
   author?: { userName?: string };
 }
 
-export async function fetchX(sourceId: string, maxItems = 25): Promise<RawItem[]> {
-  const key = process.env.TWITTERAPI_KEY;
-  if (!key) return [];
-
-  const query = `(${ACCOUNTS.map((a) => `from:${a}`).join(" OR ")}) within_time:3h`;
+async function searchChunk(key: string, accounts: string[]): Promise<XTweet[]> {
+  const query = `(${accounts.map((a) => `from:${a}`).join(" OR ")}) within_time:3h`;
   const url = `https://api.twitterapi.io/twitter/tweet/advanced_search?queryType=Latest&query=${encodeURIComponent(query)}`;
   const res = await fetch(url, {
     headers: { "X-API-Key": key },
@@ -40,7 +44,17 @@ export async function fetchX(sourceId: string, maxItems = 25): Promise<RawItem[]
   });
   if (!res.ok) throw new Error(`twitterapi.io HTTP ${res.status}`);
   const data = (await res.json()) as { tweets?: XTweet[] };
-  const tweets = data.tweets ?? [];
+  return data.tweets ?? [];
+}
+
+export async function fetchX(sourceId: string, maxItems = 30): Promise<RawItem[]> {
+  const key = process.env.TWITTERAPI_KEY;
+  if (!key) return [];
+
+  const chunks: string[][] = [];
+  for (let i = 0; i < ACCOUNTS.length; i += CHUNK_SIZE) chunks.push(ACCOUNTS.slice(i, i + CHUNK_SIZE));
+  const results = await Promise.all(chunks.map((c) => searchChunk(key, c)));
+  const tweets = results.flat();
 
   return tweets
     .filter((t) => {

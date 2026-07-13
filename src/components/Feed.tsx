@@ -392,9 +392,7 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
                     {item.tier}
                   </span>
                   <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    href={`/item/${item.id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="min-w-0 flex-1 basis-full text-[15px] font-medium leading-snug text-[#e6edf3] hover:underline sm:basis-auto"
                   >

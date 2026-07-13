@@ -13,6 +13,7 @@ export const applyClassification = impl.applyClassification;
 export const getFeed = impl.getFeed;
 export const getFeedBefore = impl.getFeedBefore;
 export const getItem = impl.getItem;
+export const saveSummary = impl.saveSummary;
 export const getDupCoverage = impl.getDupCoverage;
 export const getLatestPublished = impl.getLatestPublished;
 export const addFeedback = impl.addFeedback;

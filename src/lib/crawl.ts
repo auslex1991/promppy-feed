@@ -9,8 +9,9 @@ import {
   getBriefing,
   saveBriefing,
   getTopForBriefing,
+  saveSummary,
 } from "./db";
-import { classifyItem, gateItem, generateBriefing } from "./classify";
+import { classifyItem, gateItem, generateBriefing, summarizeArticle } from "./classify";
 import { fetchArticleText } from "./adapters/article";
 import type { Classification, RecentItem } from "./types";
 
@@ -50,11 +51,13 @@ export async function runCrawl(): Promise<CrawlStats> {
   let duplicates = 0;
   for (const p of pending) {
     try {
-      // Enrich empty-excerpt items (scraped blogs, HF Blog) with article text
-      // so both the gate and the summary judge from body, not just a headline.
+      // Enrich short/empty excerpts with article text so the gate, the
+      // classification, and the item-page summary judge from real body text.
+      // (X posts and Reddit self-posts already carry their full text.)
       let excerpt = p.excerpt;
-      if (!excerpt.trim()) {
-        excerpt = await fetchArticleText(p.url);
+      if (excerpt.trim().length < 400 && p.source_id !== "x" && p.source_id !== "reddit") {
+        const article = await fetchArticleText(p.url);
+        if (article.length > excerpt.trim().length) excerpt = article;
       }
 
       // Stage 1 — cheap Haiku relevance gate (no dedup context).
@@ -74,6 +77,9 @@ export async function runCrawl(): Promise<CrawlStats> {
       if (result.action === "publish") {
         classified++;
         context.unshift({ id: p.id, source_id: p.source_id, title_orig: p.title_orig, headline_ko: result.headline_ko });
+        // Item-page Korean summary (Gemini; "" on failure → column stays null).
+        const summary = await summarizeArticle({ sourceId: p.source_id, title: p.title_orig, text: excerpt });
+        if (summary) await saveSummary(p.id, summary);
       } else if (result.action === "duplicate") {
         duplicates++;
       }

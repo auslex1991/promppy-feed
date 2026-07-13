@@ -57,10 +57,15 @@ async function getDb(): Promise<BetterSqlite3.Database> {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     );
   `);
-  try {
-    db.exec(`ALTER TABLE items ADD COLUMN dup_of INTEGER`);
-  } catch {
-    // column already exists
+  for (const ddl of [
+    `ALTER TABLE items ADD COLUMN dup_of INTEGER`,
+    `ALTER TABLE items ADD COLUMN summary_ko TEXT`,
+  ]) {
+    try {
+      db.exec(ddl);
+    } catch {
+      // column already exists
+    }
   }
   return db;
 }
@@ -209,11 +214,11 @@ export async function getItem(id: number): Promise<FeedItem | null> {
   const d = await getDb();
   const r = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko
        FROM items WHERE id = ? AND status = 'published'`
     )
     .get(id) as
-    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string }
+    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string; summary_ko: string | null }
     | undefined;
   if (!r) return null;
   return {
@@ -226,7 +231,13 @@ export async function getItem(id: number): Promise<FeedItem | null> {
     whyKo: r.why_ko,
     tier: r.tier,
     publishedAt: r.published_at,
+    summaryKo: r.summary_ko ?? null,
   };
+}
+
+export async function saveSummary(id: number, summaryKo: string): Promise<void> {
+  const d = await getDb();
+  d.prepare(`UPDATE items SET summary_ko = ? WHERE id = ?`).run(summaryKo, id);
 }
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {

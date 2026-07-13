@@ -267,6 +267,32 @@ ${input.excerpt.slice(0, 1500)}`;
 }
 
 /**
+ * Korean article summary for the item page (4–6 sentences). Gemini Flash —
+ * runs once per published item. Returns "" on failure; callers treat that as
+ * "no summary" rather than an error.
+ */
+export async function summarizeArticle(input: {
+  sourceId: string;
+  title: string;
+  text: string;
+}): Promise<string> {
+  if (!geminiEnabled() || input.text.trim().length < 200) return "";
+  try {
+    const out = await geminiJson<{ summary_ko: string }>(
+      GEMINI_CLASSIFY_MODEL,
+      `당신은 promppy(한국 AI 실무자를 위한 뉴스 서비스)의 요약 작성자입니다. 제공된 기사/글을 한국어 4~6문장으로 요약하세요.
+규칙: 사실 위주, 구체적 수치·제품명·날짜 유지(제품·모델명은 원문 표기), 기사에 없는 내용 추가 금지, 서두("이 기사는...") 없이 바로 내용부터, 실무자가 알아야 할 핵심 순서로.`,
+      `출처: ${SOURCE_NAMES[input.sourceId] ?? input.sourceId}\n제목: ${input.title}\n본문:\n${input.text.slice(0, 4000)}`,
+      { type: "OBJECT", properties: { summary_ko: { type: "STRING" } }, required: ["summary_ko"] },
+      1024
+    );
+    return (out.summary_ko ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+/**
  * 오늘의 브리핑: one call per day condensing the last 24h's top items into a
  * 4–6 line morning digest, pinned above the feed.
  */
