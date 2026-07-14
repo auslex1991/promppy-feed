@@ -38,9 +38,9 @@ const PEOPLE_ACCOUNTS = [
   "_avichawla", "DataChaz", "ns123abc", "alexcooldev",
 ];
 
-// The LLM gate judges substance from here — 50 likes is "people noticed",
-// not "already famous", so good posts surface hours earlier.
-const MIN_LIKES_PEOPLE = 50;
+// The LLM gate judges substance from here — 20 likes just filters the posts
+// literally nobody engaged with; quality judgment belongs to the gate.
+const MIN_LIKES_PEOPLE = 20;
 const PEOPLE_WINDOW = "12h";
 
 // Open discovery: viral AI tweets from ANYONE, not just the curated roster.
