@@ -15,11 +15,27 @@ function getPool(): Pool {
   return pool;
 }
 
+// Arbitrary app-wide key for pg_advisory_lock — serializes concurrent
+// ensureSchema callers. Next.js prerenders multiple DB-touching routes in
+// PARALLEL build workers (sitemap.xml + rss.xml); without the lock, their
+// simultaneous ALTER/CREATE DDL deadlocked a production build (2026-07-14).
+const SCHEMA_LOCK_KEY = 7278_0001;
+
 function ensureSchema(): Promise<void> {
   if (!schemaReady) {
-    schemaReady = getPool()
-      .query(
-        `
+    schemaReady = runSchemaDdl();
+  }
+  return schemaReady;
+}
+
+async function runSchemaDdl(): Promise<void> {
+  // Session-level advisory lock must be taken and released on the SAME
+  // connection — use a dedicated client, not the pool's query() helper.
+  const client = await getPool().connect();
+  try {
+    await client.query(`SELECT pg_advisory_lock($1)`, [SCHEMA_LOCK_KEY]);
+    await client.query(
+      `
       CREATE TABLE IF NOT EXISTS items (
         id SERIAL PRIMARY KEY,
         source_id TEXT NOT NULL,
@@ -69,10 +85,14 @@ function ensureSchema(): Promise<void> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
     `
-      )
-      .then(() => undefined);
+    );
+  } finally {
+    try {
+      await client.query(`SELECT pg_advisory_unlock($1)`, [SCHEMA_LOCK_KEY]);
+    } finally {
+      client.release();
+    }
   }
-  return schemaReady;
 }
 
 export async function insertNewItems(items: RawItem[]): Promise<number> {
