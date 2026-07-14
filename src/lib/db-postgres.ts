@@ -15,7 +15,7 @@ function getPool(): Pool {
   return pool;
 }
 
-// Arbitrary app-wide key for pg_advisory_lock — serializes concurrent
+// Arbitrary app-wide key for the schema advisory lock — serializes concurrent
 // ensureSchema callers. Next.js prerenders multiple DB-touching routes in
 // PARALLEL build workers (sitemap.xml + rss.xml); without the lock, their
 // simultaneous ALTER/CREATE DDL deadlocked a production build (2026-07-14).
@@ -29,11 +29,17 @@ function ensureSchema(): Promise<void> {
 }
 
 async function runSchemaDdl(): Promise<void> {
-  // Session-level advisory lock must be taken and released on the SAME
-  // connection — use a dedicated client, not the pool's query() helper.
+  // MUST be the TRANSACTION-scoped lock (pg_advisory_xact_lock), never the
+  // session-scoped pg_advisory_lock: DATABASE_URL goes through a
+  // transaction-pooling proxy (Neon PgBouncer), where a session lock sticks
+  // to a long-lived shared backend and the later unlock can run on a
+  // DIFFERENT backend — the lock leaks forever and every request hangs
+  // (production outage 2026-07-14). An explicit transaction is pinned to one
+  // backend, and the xact lock auto-releases at COMMIT/ROLLBACK.
   const client = await getPool().connect();
   try {
-    await client.query(`SELECT pg_advisory_lock($1)`, [SCHEMA_LOCK_KEY]);
+    await client.query(`BEGIN`);
+    await client.query(`SELECT pg_advisory_xact_lock($1)`, [SCHEMA_LOCK_KEY]);
     await client.query(
       `
       CREATE TABLE IF NOT EXISTS items (
@@ -86,12 +92,16 @@ async function runSchemaDdl(): Promise<void> {
       );
     `
     );
-  } finally {
+    await client.query(`COMMIT`);
+  } catch (e) {
     try {
-      await client.query(`SELECT pg_advisory_unlock($1)`, [SCHEMA_LOCK_KEY]);
-    } finally {
-      client.release();
+      await client.query(`ROLLBACK`);
+    } catch {
+      // connection-level failure — release below still runs
     }
+    throw e;
+  } finally {
+    client.release();
   }
 }
 
