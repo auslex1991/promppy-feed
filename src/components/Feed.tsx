@@ -66,21 +66,19 @@ function relative(iso: string, now: number): string {
   return `${Math.floor(diff / 86_400_000)}일 전`;
 }
 
-type Filter = "all" | Tier | "팁" | "X";
-const FILTERS: Filter[] = ["all", "속보", "중요", "참고", "팁", "X"];
+type Filter = "all" | Tier | "팁";
+const FILTERS: Filter[] = ["all", "속보", "중요", "참고", "팁"];
 const FILTER_LABEL: Record<Filter, string> = {
   all: "전체",
   속보: "속보",
   중요: "중요",
   참고: "참고",
   팁: "팁",
-  X: "X",
 };
 
 function matchesFilter(item: FeedItem, filter: Filter): boolean {
   if (filter === "all") return true;
   if (filter === "팁") return Boolean(item.isTip);
-  if (filter === "X") return item.sourceId === "x";
   return item.tier === filter;
 }
 
@@ -198,7 +196,6 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
     중요: items.filter((i) => i.tier === "중요").length,
     참고: items.filter((i) => i.tier === "참고").length,
     팁: items.filter((i) => i.isTip).length,
-    X: items.filter((i) => i.sourceId === "x").length,
   };
   const shown = items.filter((i) => matchesFilter(i, filter));
 
@@ -283,7 +280,7 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
         {FILTERS.map((f) => {
           const active = filter === f;
           const accent =
-            f === "속보" ? "#ff4d4f" : f === "중요" ? "#ffb020" : f === "참고" ? "#8b949e" : f === "팁" ? "#3fb950" : f === "X" ? "#58a6ff" : "#e6edf3";
+            f === "속보" ? "#ff4d4f" : f === "중요" ? "#ffb020" : f === "참고" ? "#8b949e" : f === "팁" ? "#3fb950" : "#e6edf3";
           return (
             <button
               key={f}
