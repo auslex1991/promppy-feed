@@ -33,6 +33,9 @@ const PEOPLE_ACCOUNTS = [
   "charliejhills", "MyWestLord", "ahmedrann", "0xJeff", "AnatoliKopadze",
   "ai_explorer25", "undefinedKi", "humzaakhalid", "cyrilXBT", "Star_Knight12",
   "CodeswithClara",
+  // User-curated batch 2 (2026-07-14).
+  "AlexFinn", "petergostev", "theo", "Ciri_ai", "hqmank", "DavidOndrej1",
+  "_avichawla", "DataChaz", "ns123abc", "alexcooldev",
 ];
 
 // The LLM gate judges substance from here — 50 likes is "people noticed",
@@ -44,7 +47,8 @@ const PEOPLE_WINDOW = "12h";
 // min_faves filters server-side, so we only pay for already-viral tweets.
 // VIRAL_MIN_LIKES re-checks client-side in case the operator is ever ignored
 // upstream — without it, a keyword this broad would flood the pipeline.
-const VIRAL_MIN_LIKES = 500;
+// Kept in sync with the 좋아요 bar in classify.ts's GATE_PROMPT/SYSTEM_PROMPT.
+const VIRAL_MIN_LIKES = 300;
 // Keyword note: X search matches whole tokens — "ChatGPT" does NOT match
 // "GPT" (a real viral pricing-comparison tweet slipped through on this),
 // so common model/tool names are listed individually.
@@ -56,10 +60,11 @@ const VIRAL_QUERY =
   // otherwise dominates viral matches. Grok NEWS still matches on "Grok".
   `min_faves:${VIRAL_MIN_LIKES} -filter:replies -"@grok" lang:en`;
 // The 24h sweep raises the bar so its match volume fits in a few pages —
-// at min_faves:500 a full day has hundreds of matches and pagination costs
+// at VIRAL_MIN_LIKES a full day has hundreds of matches and pagination costs
 // more than the slow-burners are worth. NOTE: X's search index lags live
 // engagement (a ♥2.7K tweet indexed at ~1-1.5K), so the bar stays well below
-// the "actually viral" level we're targeting.
+// the "actually viral" level we're targeting. Independent of VIRAL_MIN_LIKES
+// (page-budget tuning, not a buzz-tier bar) — do not lower this with it.
 const SWEEP_MIN_LIKES = 1000;
 const SWEEP_QUERY = VIRAL_QUERY.replace(
   `min_faves:${VIRAL_MIN_LIKES}`,
