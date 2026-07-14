@@ -40,10 +40,11 @@ export function clampFuture(iso: string | null): string {
 
 // Display-share caps: no source may occupy more slots than its cap in the
 // rendered feed, independent of publish rate. Reddit gets ~20% by request;
-// everything else 10%.
+// everything else 10%. X is UNCAPPED by user request (2026-07-14) — its only
+// fairness constraint is the per-account X_AUTHOR_CAP below.
 export const SOURCE_CAPS: { default: number; perSource: Record<string, number> } = {
   default: 10,
-  perSource: { reddit: 20, x: 30 },
+  perSource: { reddit: 20, x: Number.MAX_SAFE_INTEGER },
 };
 
 // Within the X allotment, no single ACCOUNT may hold more than this many

@@ -38,9 +38,11 @@ const PEOPLE_ACCOUNTS = [
   "_avichawla", "DataChaz", "ns123abc", "alexcooldev",
 ];
 
-// The LLM gate judges substance from here — 20 likes just filters the posts
+// The LLM gate judges substance from here — 5 likes only filters the posts
 // literally nobody engaged with; quality judgment belongs to the gate.
-const MIN_LIKES_PEOPLE = 20;
+// Kept this low on purpose: roster announcements often have few likes when
+// our 15-min crawl sees them first (user request 2026-07-14).
+const MIN_LIKES_PEOPLE = 5;
 const PEOPLE_WINDOW = "12h";
 
 // Open discovery: viral AI tweets from ANYONE, not just the curated roster.
