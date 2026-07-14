@@ -51,6 +51,12 @@ function ensureSchema(): Promise<void> {
       ALTER TABLE items ADD COLUMN IF NOT EXISTS dup_of INTEGER;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS summary_ko TEXT;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS is_tip BOOLEAN NOT NULL DEFAULT false;
+      CREATE TABLE IF NOT EXISTS reactions (
+        item_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0,
+        PRIMARY KEY (item_id, kind)
+      );
       CREATE INDEX IF NOT EXISTS idx_items_dup_of ON items(dup_of);
       CREATE TABLE IF NOT EXISTS feedback (
         id SERIAL PRIMARY KEY,
@@ -167,6 +173,32 @@ export async function getLatestPublished(excludeId: number, limit = 5): Promise<
 export async function addFeedback(itemId: number): Promise<void> {
   await ensureSchema();
   await getPool().query(`INSERT INTO feedback (item_id) VALUES ($1)`, [itemId]);
+}
+
+/** delta is +1 (react) or -1 (un-react); count never goes below 0. */
+export async function addReaction(itemId: number, kind: string, delta: 1 | -1): Promise<void> {
+  await ensureSchema();
+  await getPool().query(
+    `INSERT INTO reactions (item_id, kind, count) VALUES ($1, $2, GREATEST($3, 0))
+     ON CONFLICT (item_id, kind) DO UPDATE SET count = GREATEST(reactions.count + $3, 0)`,
+    [itemId, kind, delta]
+  );
+}
+
+export async function getReactionsFor(itemIds: number[]): Promise<Map<number, Record<string, number>>> {
+  const map = new Map<number, Record<string, number>>();
+  if (itemIds.length === 0) return map;
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT item_id, kind, count FROM reactions WHERE item_id = ANY($1) AND count > 0`,
+    [itemIds]
+  );
+  for (const r of res.rows) {
+    const rec = map.get(r.item_id) ?? {};
+    rec[r.kind] = r.count;
+    map.set(r.item_id, rec);
+  }
+  return map;
 }
 
 export async function getBriefing(dateKst: string): Promise<Briefing | null> {

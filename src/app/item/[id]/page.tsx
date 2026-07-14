@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDupCoverage, getItem, getLatestPublished } from "@/lib/db";
+import { getDupCoverage, getItem, getLatestPublished, getReactionsFor } from "@/lib/db";
 import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR, kstDate } from "@/lib/site";
 import CopyLinkButton from "@/components/CopyLinkButton";
+import Reactions from "@/components/Reactions";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -46,7 +47,11 @@ export default async function ItemPage({ params }: Props) {
   const item = await loadItem(id);
   if (!item) notFound();
 
-  const [dups, latest] = await Promise.all([getDupCoverage(item.id), getLatestPublished(item.id, 5)]);
+  const [dups, latest, reactions] = await Promise.all([
+    getDupCoverage(item.id),
+    getLatestPublished(item.id, 5),
+    getReactionsFor([item.id]),
+  ]);
   const color = TIER_COLOR[item.tier] ?? TIER_COLOR["참고"];
   const sourceName = SOURCE_NAMES[item.sourceId] ?? item.sourceId;
 
@@ -106,7 +111,8 @@ export default async function ItemPage({ params }: Props) {
           </a>
         </div>
 
-        <div className="mt-6 flex items-center gap-3">
+        <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
+          <Reactions itemId={item.id} initial={reactions.get(item.id)} />
           <CopyLinkButton url={`${SITE_URL}/item/${item.id}`} />
         </div>
       </article>

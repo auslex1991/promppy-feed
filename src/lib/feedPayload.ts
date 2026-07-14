@@ -1,4 +1,4 @@
-import { getBriefing, getFeed, lastSuccessfulRun } from "./db";
+import { getBriefing, getFeed, getReactionsFor, lastSuccessfulRun } from "./db";
 import { SOURCE_NAMES } from "./sources";
 import type { FeedPayload } from "./types";
 
@@ -10,8 +10,13 @@ export async function getFeedPayload(limit = 100): Promise<FeedPayload> {
     lastSuccessfulRun(),
     getBriefing(kstDate),
   ]);
+  const reactions = await getReactionsFor(feed.map((i) => i.id));
   return {
-    items: feed.map((i) => ({ ...i, sourceName: SOURCE_NAMES[i.sourceId] ?? i.sourceId })),
+    items: feed.map((i) => ({
+      ...i,
+      sourceName: SOURCE_NAMES[i.sourceId] ?? i.sourceId,
+      reactions: reactions.get(i.id),
+    })),
     lastCrawlAt: lastRun?.finished_at ?? null,
     serverNow: new Date().toISOString(),
     briefing,

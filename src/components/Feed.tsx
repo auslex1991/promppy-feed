@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import type { FeedItem, FeedPayload, Tier } from "@/lib/types";
 import CopyLinkButton from "./CopyLinkButton";
 import FeedbackButton from "./FeedbackButton";
+import Reactions from "./Reactions";
 import Ticker from "./Ticker";
 
 const POLL_MS = 45_000;
@@ -416,6 +417,10 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
                     {item.headlineKo}
                   </a>
                   <span className="ml-auto min-w-0 shrink truncate font-mono-ts text-[11px] text-[#8b949e]/70">
+                    {(() => {
+                      const total = Object.values(item.reactions ?? {}).reduce((a, b) => a + b, 0);
+                      return total > 0 ? <span className="mr-2 text-[#3fb950]/80">👍 {total}</span> : null;
+                    })()}
                     {item.sourceName} ·{" "}
                     <span suppressHydrationWarning>{relative(item.publishedAt, now)}</span>
                   </span>
@@ -438,6 +443,9 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
                     >
                       {item.url} ↗
                     </a>
+                    <div className="mt-3" onClick={(e) => e.stopPropagation()}>
+                      <Reactions itemId={item.id} initial={item.reactions} />
+                    </div>
                     <div className="mt-3 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <CopyLinkButton url={`${window.location.origin}/item/${item.id}`} />
                       <a

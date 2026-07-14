@@ -57,6 +57,14 @@ async function getDb(): Promise<BetterSqlite3.Database> {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     );
   `);
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS reactions (
+      item_id INTEGER NOT NULL,
+      kind TEXT NOT NULL,
+      count INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY (item_id, kind)
+    );
+  `);
   for (const ddl of [
     `ALTER TABLE items ADD COLUMN dup_of INTEGER`,
     `ALTER TABLE items ADD COLUMN summary_ko TEXT`,
@@ -127,6 +135,33 @@ export async function applyClassification(id: number, c: Classification): Promis
     dupOf: c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
     isTip: c.action === "publish" && c.is_tip ? 1 : 0,
   });
+}
+
+/** delta is +1 (react) or -1 (un-react); count never goes below 0. */
+export async function addReaction(itemId: number, kind: string, delta: 1 | -1): Promise<void> {
+  const d = await getDb();
+  d.prepare(
+    `INSERT INTO reactions (item_id, kind, count) VALUES (@id, @kind, MAX(@delta, 0))
+     ON CONFLICT (item_id, kind) DO UPDATE SET count = MAX(count + @delta, 0)`
+  ).run({ id: itemId, kind, delta });
+}
+
+export async function getReactionsFor(itemIds: number[]): Promise<Map<number, Record<string, number>>> {
+  const map = new Map<number, Record<string, number>>();
+  if (itemIds.length === 0) return map;
+  const d = await getDb();
+  const rows = d
+    .prepare(
+      `SELECT item_id, kind, count FROM reactions
+       WHERE count > 0 AND item_id IN (${itemIds.map(() => "?").join(",")})`
+    )
+    .all(...itemIds) as Array<{ item_id: number; kind: string; count: number }>;
+  for (const r of rows) {
+    const rec = map.get(r.item_id) ?? {};
+    rec[r.kind] = r.count;
+    map.set(r.item_id, rec);
+  }
+  return map;
 }
 
 export async function getRecentPublished(limit = 80): Promise<RecentItem[]> {
