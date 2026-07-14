@@ -46,22 +46,41 @@ export const SOURCE_CAPS: { default: number; perSource: Record<string, number> }
   perSource: { reddit: 20, x: 30 },
 };
 
+// Within the X allotment, no single ACCOUNT may hold more than this many
+// front-page slots — high-volume thread-aggregator accounts (e.g. a packager
+// posting 8 decent threads/day) individually pass the rubric but would
+// otherwise crowd out every other curated voice.
+export const X_AUTHOR_CAP = 2;
+
+function xAuthor(titleOrig: string): string | null {
+  return /^@([A-Za-z0-9_]+):/.exec(titleOrig)?.[1]?.toLowerCase() ?? null;
+}
+
 /**
  * Turn a recency-sorted candidate list into the displayed feed:
- * 1. enforce per-source caps (SOURCE_CAPS)
+ * 1. enforce per-source caps (SOURCE_CAPS) and per-X-account caps (X_AUTHOR_CAP)
  * 2. interleave so the same source never appears back-to-back when an
  *    alternative exists within the next LOOKAHEAD items — breaks up the
  *    "N AI타임스 rows in a row" bursts while staying approximately
  *    recency-ordered (an item can be displaced by at most LOOKAHEAD slots).
  */
-export function arrangeFeed<T extends { sourceId: string }>(rows: T[], limit: number): T[] {
+export function arrangeFeed<T extends { sourceId: string; titleOrig: string }>(rows: T[], limit: number): T[] {
   const counts: Record<string, number> = {};
+  const authorCounts: Record<string, number> = {};
   const capped: T[] = [];
   for (const r of rows) {
     if (capped.length >= limit) break;
     const cap = SOURCE_CAPS.perSource[r.sourceId] ?? SOURCE_CAPS.default;
     const c = counts[r.sourceId] ?? 0;
     if (c >= cap) continue;
+    if (r.sourceId === "x") {
+      const author = xAuthor(r.titleOrig);
+      if (author) {
+        const ac = authorCounts[author] ?? 0;
+        if (ac >= X_AUTHOR_CAP) continue;
+        authorCounts[author] = ac + 1;
+      }
+    }
     counts[r.sourceId] = c + 1;
     capped.push(r);
   }

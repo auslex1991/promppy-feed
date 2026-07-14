@@ -49,6 +49,10 @@ const PEOPLE_WINDOW = "12h";
 // upstream — without it, a keyword this broad would flood the pipeline.
 // Kept in sync with the 좋아요 bar in classify.ts's GATE_PROMPT/SYSTEM_PROMPT.
 const VIRAL_MIN_LIKES = 300;
+
+// Max tweets accepted from one account per crawl (intake side; the display
+// side additionally enforces X_AUTHOR_CAP in db-shared.ts arrangeFeed).
+const MAX_PER_AUTHOR = 3;
 // Keyword note: X search matches whole tokens — "ChatGPT" does NOT match
 // "GPT" (a real viral pricing-comparison tweet slipped through on this),
 // so common model/tool names are listed individually.
@@ -137,6 +141,7 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
     [...ORG_ACCOUNTS, ...PEOPLE_ACCOUNTS].map((a) => a.toLowerCase())
   );
   const tweets = results.flat();
+  const authorIntake: Record<string, number> = {};
 
   return tweets
     .filter((t) => {
@@ -148,6 +153,15 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
       if (orgs.has(user)) return true;
       if (roster.has(user)) return (t.likeCount ?? 0) >= MIN_LIKES_PEOPLE;
       return (t.likeCount ?? 0) >= VIRAL_MIN_LIKES;
+    })
+    // Per-author intake cap: high-volume accounts (thread aggregators can
+    // post 8+/day) would otherwise eat classification budget and dominate
+    // the feed; keep each account's top posts by engagement instead.
+    .sort((a, b) => (b.likeCount ?? 0) - (a.likeCount ?? 0))
+    .filter((t) => {
+      const user = (t.author?.userName ?? "").toLowerCase();
+      authorIntake[user] = (authorIntake[user] ?? 0) + 1;
+      return authorIntake[user] <= MAX_PER_AUTHOR;
     })
     .slice(0, maxItems)
     .map((t) => {
