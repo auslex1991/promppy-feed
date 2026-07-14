@@ -20,6 +20,9 @@ export const metadata: Metadata = {
   title: "promppy — 실시간 AI 뉴스",
   description:
     "AI 업계 소식을 실시간으로. 속보·중요·참고 자동 분류와 한 줄 시사점 — 한국 AI 실무자를 위한 뉴스 터미널.",
+  alternates: {
+    types: { "application/rss+xml": "/rss.xml" },
+  },
   openGraph: {
     title: "promppy — 실시간 AI 뉴스",
     description:

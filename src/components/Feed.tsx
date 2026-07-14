@@ -65,14 +65,21 @@ function relative(iso: string, now: number): string {
   return `${Math.floor(diff / 86_400_000)}일 전`;
 }
 
-type Filter = "all" | Tier;
-const FILTERS: Filter[] = ["all", "속보", "중요", "참고"];
+type Filter = "all" | Tier | "팁";
+const FILTERS: Filter[] = ["all", "속보", "중요", "참고", "팁"];
 const FILTER_LABEL: Record<Filter, string> = {
   all: "전체",
   속보: "속보",
   중요: "중요",
   참고: "참고",
+  팁: "팁",
 };
+
+function matchesFilter(item: FeedItem, filter: Filter): boolean {
+  if (filter === "all") return true;
+  if (filter === "팁") return Boolean(item.isTip);
+  return item.tier === filter;
+}
 
 export default function Feed({ initialData }: { initialData?: FeedPayload }) {
   const [data, setData] = useState<FeedPayload | null>(initialData ?? null);
@@ -187,14 +194,15 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
     속보: items.filter((i) => i.tier === "속보").length,
     중요: items.filter((i) => i.tier === "중요").length,
     참고: items.filter((i) => i.tier === "참고").length,
+    팁: items.filter((i) => i.isTip).length,
   };
-  const shown = filter === "all" ? items : items.filter((i) => i.tier === filter);
+  const shown = items.filter((i) => matchesFilter(i, filter));
 
-  // Older (load-more) items, deduped against the front page, then tier-filtered.
+  // Older (load-more) items, deduped against the front page, then filtered.
   const frontIds = new Set(items.map((i) => i.id));
   const olderShown = older
     .filter((o) => !frontIds.has(o.id))
-    .filter((i) => filter === "all" || i.tier === filter);
+    .filter((i) => matchesFilter(i, filter));
   const combined = [...shown, ...olderShown];
 
   // Keyboard navigation: j/k move, Enter expands, o opens the original.
@@ -271,7 +279,7 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
         {FILTERS.map((f) => {
           const active = filter === f;
           const accent =
-            f === "속보" ? "#ff4d4f" : f === "중요" ? "#ffb020" : f === "참고" ? "#8b949e" : "#e6edf3";
+            f === "속보" ? "#ff4d4f" : f === "중요" ? "#ffb020" : f === "참고" ? "#8b949e" : f === "팁" ? "#3fb950" : "#e6edf3";
           return (
             <button
               key={f}
@@ -328,7 +336,7 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
 
       {data && data.items.length > 0 && combined.length === 0 && (
         <p className="py-12 text-center text-sm text-[#8b949e]">
-          현재 <span className="text-[#c9d1d9]">{FILTER_LABEL[filter]}</span> 등급 뉴스가 없습니다.
+          현재 <span className="text-[#c9d1d9]">{FILTER_LABEL[filter]}</span> 뉴스가 없습니다.
         </p>
       )}
 
@@ -478,6 +486,10 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
           <span className="mx-2">·</span>
           <a href="/privacy" className="hover:text-[#8b949e] hover:underline">
             개인정보 처리방침
+          </a>
+          <span className="mx-2">·</span>
+          <a href="/rss.xml" className="hover:text-[#8b949e] hover:underline">
+            RSS
           </a>
         </p>
       </footer>
