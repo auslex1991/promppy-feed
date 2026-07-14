@@ -87,8 +87,58 @@ interface XTweet {
   text?: string;
   createdAt?: string;
   likeCount?: number;
+  replyCount?: number;
   isReply?: boolean;
+  conversationId?: string;
   author?: { userName?: string };
+}
+
+// Longform single tweets run to ~1-4K chars; capture the whole thing (the old
+// 900 cap lopped substance off the exact posts worth reading). DB storage cap
+// is raised to match. Classification still slices to 1500 (tier/headline need
+// no more); the Korean summary reads the full stored excerpt.
+const X_EXCERPT_CAP = 2500;
+
+// Only spend a thread_context call when the text explicitly signals a
+// multi-tweet thread AND there are replies to chain — most "threads" among AI
+// accounts are actually one longform tweet (author chain of 1), so an
+// unconditional fetch would pay per item for nothing.
+const THREAD_MARKER = /🧵|(^|\s)1\/|(^|\s)a thread(\s|$|:|\.)/i;
+
+/**
+ * For a genuine self-reply thread, concatenate the author's own chain
+ * (chronological) so the classifier and summary see the whole argument, not
+ * just the hook. Fails open to the root text on any error — thread enrichment
+ * is a bonus, never a reason to drop an item.
+ */
+async function fetchThreadText(key: string, opener: XTweet): Promise<string> {
+  const author = opener.author?.userName?.toLowerCase();
+  if (!author) return opener.text ?? "";
+  try {
+    const res = await fetch(
+      `https://api.twitterapi.io/twitter/tweet/thread_context?tweetId=${opener.id}`,
+      { headers: { "X-API-Key": key }, signal: AbortSignal.timeout(15000) }
+    );
+    if (!res.ok) return opener.text ?? "";
+    const data = (await res.json()) as { tweets?: XTweet[] };
+    const chain = (data.tweets ?? [])
+      .filter((t) => t.author?.userName?.toLowerCase() === author && !t.text?.startsWith("RT @"))
+      .sort((a, b) => new Date(a.createdAt ?? 0).getTime() - new Date(b.createdAt ?? 0).getTime());
+    if (chain.length <= 1) return opener.text ?? "";
+    // Drop the leading "@handle" reply prefixes from continuation tweets.
+    const seen = new Set<string>();
+    const parts: string[] = [];
+    for (const t of chain) {
+      const clean = (t.text ?? "").replace(/^(@\w+\s+)+/, "").trim();
+      if (clean && !seen.has(t.id)) {
+        seen.add(t.id);
+        parts.push(clean);
+      }
+    }
+    return parts.join(" ");
+  } catch {
+    return opener.text ?? "";
+  }
 }
 
 async function search(key: string, query: string, pages = 1): Promise<XTweet[]> {
@@ -145,7 +195,7 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
   const tweets = results.flat();
   const authorIntake: Record<string, number> = {};
 
-  return tweets
+  const kept = tweets
     .filter((t) => {
       const text = t.text ?? "";
       if (!t.url || text.length <= 30 || t.isReply || text.startsWith("RT @")) return false;
@@ -165,16 +215,24 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
       authorIntake[user] = (authorIntake[user] ?? 0) + 1;
       return authorIntake[user] <= MAX_PER_AUTHOR;
     })
-    .slice(0, maxItems)
-    .map((t) => {
-      const text = (t.text ?? "").replace(/\s+/g, " ").trim();
+    .slice(0, maxItems);
+
+  return Promise.all(
+    kept.map(async (t) => {
       const user = t.author?.userName ?? "unknown";
+      // Enrich only true thread openers; everyone else uses the (now full) text.
+      const raw =
+        THREAD_MARKER.test(t.text ?? "") && (t.replyCount ?? 0) >= 2
+          ? await fetchThreadText(key, t)
+          : t.text ?? "";
+      const text = raw.replace(/\s+/g, " ").trim();
       return {
         sourceId,
         url: t.url,
         title: `@${user}: ${text.slice(0, 130)}`,
         publishedAt: t.createdAt ? new Date(t.createdAt).toISOString() : null,
-        excerpt: `Post by @${user} on X (좋아요 ${t.likeCount ?? 0}). ${text}`.slice(0, 900),
+        excerpt: `Post by @${user} on X (좋아요 ${t.likeCount ?? 0}). ${text}`.slice(0, X_EXCERPT_CAP),
       };
-    });
+    })
+  );
 }

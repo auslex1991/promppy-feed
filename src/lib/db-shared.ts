@@ -54,6 +54,11 @@ export const SOURCE_CAPS: { default: number; perSource: Record<string, number> }
 // otherwise crowd out every other curated voice.
 export const X_AUTHOR_CAP = 2;
 
+// Stored excerpt cap. Raised from 1500 so longform X posts / enriched threads
+// survive intact for the Korean summary (which reads the full stored excerpt);
+// classification still slices to 1500, so per-item classify cost is unchanged.
+export const EXCERPT_STORE_CAP = 2500;
+
 function xAuthor(titleOrig: string): string | null {
   return /^@([A-Za-z0-9_]+):/.exec(titleOrig)?.[1]?.toLowerCase() ?? null;
 }

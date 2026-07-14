@@ -1,6 +1,6 @@
 import { Pool } from "pg";
 import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Tier } from "./types";
-import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, type RunStats, type UnclassifiedRow } from "./db-shared";
+import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, EXCERPT_STORE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 let pool: Pool | null = null;
 let schemaReady: Promise<void> | null = null;
@@ -120,7 +120,7 @@ export async function insertNewItems(items: RawItem[]): Promise<number> {
     const res = await p.query(
       `INSERT INTO items (source_id, url, url_hash, title_hash, title_orig, excerpt, published_at)
        VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (url_hash) DO NOTHING`,
-      [r.sourceId, url, sha256(url), titleHash, r.title, r.excerpt.slice(0, 1500), clampFuture(r.publishedAt)]
+      [r.sourceId, url, sha256(url), titleHash, r.title, r.excerpt.slice(0, EXCERPT_STORE_CAP), clampFuture(r.publishedAt)]
     );
     inserted += res.rowCount ?? 0;
   }
