@@ -21,6 +21,12 @@ export default function PushToggle() {
   const [state, setState] = useState<State>("idle");
 
   useEffect(() => {
+    // No VAPID key configured (e.g. keys not yet set in this environment) →
+    // the feature can't work, so render nothing rather than a dead button.
+    if (!process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY) {
+      setState("unsupported");
+      return;
+    }
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setState("unsupported");
       return;
