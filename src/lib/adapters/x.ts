@@ -1,4 +1,5 @@
 import type { RawItem } from "../types";
+import { getXAccounts, seedXAccounts } from "../db";
 
 /**
  * Posts from X/Twitter via twitterapi.io advanced_search (the official X
@@ -10,33 +11,60 @@ import type { RawItem } from "../types";
  * Search windows overlap the 15-min crawl on purpose; URL dedup drops
  * re-seen tweets. Missing TWITTERAPI_KEY disables the source silently.
  */
-// Org accounts post announcements — every non-reply passes to the gate.
-const ORG_ACCOUNTS = [
+// SEED lists: the initial roster written into the x_accounts table on first
+// run, and the fallback if the DB is ever unreadable (so a DB hiccup never
+// disables X entirely). The LIVE roster is the DB — edit it via /admin, not
+// here. Org accounts post announcements (every non-reply passes to the gate);
+// people accounts mix signal with chatter (only real-engagement tweets enter).
+const SEED_ORG_ACCOUNTS = [
   "OpenAI", "AnthropicAI", "GoogleDeepMind", "xai", "AIatMeta", "MistralAI",
   "huggingface", "cursor_ai",
   "GoogleAI", "perplexity_ai", "deepseek_ai", "Alibaba_Qwen", "nvidia",
   "LangChainAI", "llama_index", "GroqInc", "Replit", "elevenlabsio",
   "runwayml", "v0",
 ];
-
-// Personal accounts mix real signal with daily chatter (lunch, lifestyle,
-// banter) — only tweets with real engagement enter the pipeline. The 12h
-// window lets a slow-burn tweet cross the like threshold on a later crawl
-// instead of aging out at 6h with 60 likes; URL dedup absorbs the overlap.
-const PEOPLE_ACCOUNTS = [
+const SEED_PEOPLE_ACCOUNTS = [
   "sama", "karpathy", "ylecun", "demishassabis", "DrJimFan", "_akhaliq",
   "swyx", "OfficialLoganK", "alexalbert__", "AndrewYNg",
   "emollick", "rowancheung", "mckaywrigley", "goodside", "jeremyphoward",
   "hwchase17", "bindureddy", "minchoi", "levelsio", "LinusEkenstam",
   "gdb", "simonw", "aidan_mclau", "nearcyan",
-  // User-curated batch (2026-07-14) — AI content/tips accounts.
   "charliejhills", "MyWestLord", "ahmedrann", "0xJeff", "AnatoliKopadze",
   "ai_explorer25", "undefinedKi", "humzaakhalid", "cyrilXBT", "Star_Knight12",
   "CodeswithClara",
-  // User-curated batch 2 (2026-07-14).
   "AlexFinn", "petergostev", "theo", "Ciri_ai", "hqmank", "DavidOndrej1",
   "_avichawla", "DataChaz", "ns123abc", "alexcooldev",
 ];
+
+export interface XRoster {
+  org: string[];
+  people: string[];
+}
+
+/**
+ * The live X roster from the DB. Seeds the table from SEED_* on first run,
+ * and falls back to the seed lists if the DB is unreadable — X must never
+ * silently go empty. Handles are stored lowercase (X search is
+ * case-insensitive); the /admin page reads and writes through the same table.
+ */
+export async function loadXRoster(): Promise<XRoster> {
+  try {
+    let rows = await getXAccounts();
+    if (rows.length === 0) {
+      await seedXAccounts([
+        ...SEED_ORG_ACCOUNTS.map((h) => ({ handle: h.toLowerCase(), kind: "org" })),
+        ...SEED_PEOPLE_ACCOUNTS.map((h) => ({ handle: h.toLowerCase(), kind: "people" })),
+      ]);
+      rows = await getXAccounts();
+    }
+    return {
+      org: rows.filter((r) => r.kind === "org").map((r) => r.handle),
+      people: rows.filter((r) => r.kind === "people").map((r) => r.handle),
+    };
+  } catch {
+    return { org: SEED_ORG_ACCOUNTS, people: SEED_PEOPLE_ACCOUNTS };
+  }
+}
 
 // The LLM gate judges substance from here — 5 likes only filters the posts
 // literally nobody engaged with; quality judgment belongs to the gate.
@@ -170,6 +198,8 @@ function accountQueries(accounts: string[], window: string): string[] {
 export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]> {
   const key = process.env.TWITTERAPI_KEY;
   if (!key) return [];
+
+  const { org: ORG_ACCOUNTS, people: PEOPLE_ACCOUNTS } = await loadXRoster();
 
   // Orgs: short window (announcements matter immediately, no like-threshold to
   // wait for) — cheaper under the 15-min crawl cadence. People: 12h so tweets

@@ -96,6 +96,11 @@ async function runSchemaDdl(): Promise<void> {
         auth TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS x_accounts (
+        handle TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
     `
     );
     await client.query(`COMMIT`);
@@ -235,6 +240,41 @@ export async function getReactionsFor(itemIds: number[]): Promise<Map<number, Re
     map.set(r.item_id, rec);
   }
   return map;
+}
+
+export interface XAccountRow {
+  handle: string;
+  kind: string;
+}
+
+export async function getXAccounts(): Promise<XAccountRow[]> {
+  await ensureSchema();
+  const res = await getPool().query(`SELECT handle, kind FROM x_accounts ORDER BY kind, handle`);
+  return res.rows as XAccountRow[];
+}
+
+export async function seedXAccounts(rows: XAccountRow[]): Promise<void> {
+  await ensureSchema();
+  const p = getPool();
+  for (const r of rows) {
+    await p.query(`INSERT INTO x_accounts (handle, kind) VALUES ($1, $2) ON CONFLICT (handle) DO NOTHING`, [
+      r.handle,
+      r.kind,
+    ]);
+  }
+}
+
+export async function addXAccount(handle: string, kind: string): Promise<void> {
+  await ensureSchema();
+  await getPool().query(
+    `INSERT INTO x_accounts (handle, kind) VALUES ($1, $2) ON CONFLICT (handle) DO UPDATE SET kind = $2`,
+    [handle, kind]
+  );
+}
+
+export async function removeXAccount(handle: string): Promise<void> {
+  await ensureSchema();
+  await getPool().query(`DELETE FROM x_accounts WHERE handle = $1`, [handle]);
 }
 
 export interface PushSub {

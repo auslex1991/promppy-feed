@@ -70,6 +70,11 @@ async function getDb(): Promise<BetterSqlite3.Database> {
       auth TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     );
+    CREATE TABLE IF NOT EXISTS x_accounts (
+      handle TEXT PRIMARY KEY,
+      kind TEXT NOT NULL,
+      added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
   `);
   for (const ddl of [
     `ALTER TABLE items ADD COLUMN dup_of INTEGER`,
@@ -226,6 +231,37 @@ export async function getLatestPublished(excludeId: number, limit = 5): Promise<
 export async function addFeedback(itemId: number): Promise<void> {
   const d = await getDb();
   d.prepare(`INSERT INTO feedback (item_id) VALUES (?)`).run(itemId);
+}
+
+export interface XAccountRow {
+  handle: string;
+  kind: string;
+}
+
+export async function getXAccounts(): Promise<XAccountRow[]> {
+  const d = await getDb();
+  return d.prepare(`SELECT handle, kind FROM x_accounts ORDER BY kind, handle`).all() as XAccountRow[];
+}
+
+export async function seedXAccounts(rows: XAccountRow[]): Promise<void> {
+  const d = await getDb();
+  const ins = d.prepare(`INSERT INTO x_accounts (handle, kind) VALUES (@handle, @kind) ON CONFLICT (handle) DO NOTHING`);
+  const tx = d.transaction((rs: XAccountRow[]) => {
+    for (const r of rs) ins.run(r);
+  });
+  tx(rows);
+}
+
+export async function addXAccount(handle: string, kind: string): Promise<void> {
+  const d = await getDb();
+  d.prepare(
+    `INSERT INTO x_accounts (handle, kind) VALUES (@handle, @kind) ON CONFLICT (handle) DO UPDATE SET kind = @kind`
+  ).run({ handle, kind });
+}
+
+export async function removeXAccount(handle: string): Promise<void> {
+  const d = await getDb();
+  d.prepare(`DELETE FROM x_accounts WHERE handle = ?`).run(handle);
 }
 
 export interface PushSub {
