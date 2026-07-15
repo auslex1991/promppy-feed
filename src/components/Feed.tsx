@@ -7,6 +7,7 @@ import FeedbackButton from "./FeedbackButton";
 import Reactions from "./Reactions";
 import Ticker from "./Ticker";
 import PushToggle from "./PushToggle";
+import ThreadsShareButton from "./ThreadsShareButton";
 
 const POLL_MS = 45_000;
 // Primary cadence is 15 min (cron-job.org), but the backstop is the HOURLY
@@ -449,6 +450,11 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
                     </div>
                     <div className="mt-3 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <CopyLinkButton url={`${window.location.origin}/item/${item.id}`} />
+                      <ThreadsShareButton
+                        headlineKo={item.headlineKo}
+                        whyKo={item.whyKo}
+                        url={`${window.location.origin}/item/${item.id}`}
+                      />
                       <a
                         href={`/item/${item.id}`}
                         className="font-mono-ts text-[12px] text-[#8b949e] hover:text-white hover:underline"

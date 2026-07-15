@@ -6,6 +6,8 @@ import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR, kstDate } from "@/lib/site";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import Reactions from "@/components/Reactions";
+import ThreadsShareButton from "@/components/ThreadsShareButton";
+import PushToggle from "@/components/PushToggle";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -114,8 +116,33 @@ export default async function ItemPage({ params }: Props) {
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
           <Reactions itemId={item.id} initial={reactions.get(item.id)} />
           <CopyLinkButton url={`${SITE_URL}/item/${item.id}`} />
+          <ThreadsShareButton headlineKo={item.headlineKo} whyKo={item.whyKo} url={`${SITE_URL}/item/${item.id}`} />
         </div>
       </article>
+
+      <section className="mt-8 rounded-lg border border-[#ffb020]/25 bg-[#ffb020]/[0.04] p-5 text-center">
+        <p className="text-[15px] text-[#e6edf3]">
+          <span className="font-semibold">promppy</span>는 한국 AI 실무자를 위한 실시간 AI 뉴스 터미널입니다.
+        </p>
+        <p className="mt-1 font-mono-ts text-[11px] text-[#8b949e]">
+          15분마다 속보·중요·팁 자동 수집 · 한국어 요약 제공
+        </p>
+        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+          <Link
+            href="/"
+            className="rounded-full bg-[#ffb020] px-4 py-1.5 font-mono-ts text-[13px] font-medium text-[#0a0e14] transition-colors hover:bg-[#ffc247]"
+          >
+            실시간 피드 보기 →
+          </Link>
+          <PushToggle />
+          <a
+            href="/rss.xml"
+            className="font-mono-ts text-[12px] text-[#8b949e] transition-colors hover:text-[#c9d1d9]"
+          >
+            RSS 구독
+          </a>
+        </div>
+      </section>
 
       {dups.length > 0 && (
         <section className="mt-8">
