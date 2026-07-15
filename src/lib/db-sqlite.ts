@@ -64,6 +64,12 @@ async function getDb(): Promise<BetterSqlite3.Database> {
       count INTEGER NOT NULL DEFAULT 0,
       PRIMARY KEY (item_id, kind)
     );
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
   `);
   for (const ddl of [
     `ALTER TABLE items ADD COLUMN dup_of INTEGER`,
@@ -220,6 +226,30 @@ export async function getLatestPublished(excludeId: number, limit = 5): Promise<
 export async function addFeedback(itemId: number): Promise<void> {
   const d = await getDb();
   d.prepare(`INSERT INTO feedback (item_id) VALUES (?)`).run(itemId);
+}
+
+export interface PushSub {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+export async function addPushSubscription(sub: PushSub): Promise<void> {
+  const d = await getDb();
+  d.prepare(
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES (@endpoint, @p256dh, @auth)
+     ON CONFLICT (endpoint) DO UPDATE SET p256dh = @p256dh, auth = @auth`
+  ).run(sub);
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  const d = await getDb();
+  d.prepare(`DELETE FROM push_subscriptions WHERE endpoint = ?`).run(endpoint);
+}
+
+export async function getPushSubscriptions(): Promise<PushSub[]> {
+  const d = await getDb();
+  return d.prepare(`SELECT endpoint, p256dh, auth FROM push_subscriptions`).all() as PushSub[];
 }
 
 export async function getBriefing(dateKst: string): Promise<Briefing | null> {

@@ -13,6 +13,7 @@ import {
 } from "./db";
 import { classifyGeminiBatch, classifyItem, gateItem, generateBriefing, summarizeArticle, type BatchItem } from "./classify";
 import { fetchArticleText } from "./adapters/article";
+import { sendPushToAll, breakingPayload } from "./push";
 import type { Classification, RecentItem } from "./types";
 
 const SKIP: Classification = { action: "skip", tier: null, headline_ko: "", why_ko: "" };
@@ -120,6 +121,16 @@ export async function runCrawl(): Promise<CrawlStats> {
       if (result.action === "publish") {
         classified++;
         context.unshift({ id: p.id, source_id: p.sourceId, title_orig: p.title, headline_ko: result.headline_ko });
+        // 속보 push: fire-and-forget to subscribers. Rare (≤2-3/week), never
+        // blocks the crawl, and failures are swallowed inside sendPushToAll.
+        if (result.tier === "속보") {
+          try {
+            const { sent, pruned } = await sendPushToAll(breakingPayload(result.headline_ko, p.id));
+            console.log(`속보 push #${p.id}: sent=${sent} pruned=${pruned}`);
+          } catch (e) {
+            errors.push(`push #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }
         // Item-page Korean summary (Gemini; "" on failure → column stays null).
         if (Date.now() < deadline) {
           const summary = await summarizeArticle({ sourceId: p.sourceId, title: p.title, text: p.excerpt });

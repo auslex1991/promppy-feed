@@ -6,6 +6,7 @@ import CopyLinkButton from "./CopyLinkButton";
 import FeedbackButton from "./FeedbackButton";
 import Reactions from "./Reactions";
 import Ticker from "./Ticker";
+import PushToggle from "./PushToggle";
 
 const POLL_MS = 45_000;
 // Primary cadence is 15 min (cron-job.org), but the backstop is the HOURLY
@@ -479,6 +480,9 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
       )}
 
       <footer className="py-6 text-center font-mono-ts text-[11px] text-[#8b949e]/50">
+        <div className="mb-4 flex justify-center">
+          <PushToggle />
+        </div>
         <p>15분마다 자동 수집 · 요약은 AI가 생성하며 부정확할 수 있습니다</p>
         <p className="mt-1 hidden sm:block text-[10px] text-[#8b949e]/40">
           단축키: j/k 이동 · Enter 펼치기 · o 원문 열기

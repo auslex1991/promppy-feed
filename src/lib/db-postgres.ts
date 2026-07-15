@@ -90,6 +90,12 @@ async function runSchemaDdl(): Promise<void> {
         content TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        endpoint TEXT PRIMARY KEY,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
     `
     );
     await client.query(`COMMIT`);
@@ -229,6 +235,32 @@ export async function getReactionsFor(itemIds: number[]): Promise<Map<number, Re
     map.set(r.item_id, rec);
   }
   return map;
+}
+
+export interface PushSub {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}
+
+export async function addPushSubscription(sub: PushSub): Promise<void> {
+  await ensureSchema();
+  await getPool().query(
+    `INSERT INTO push_subscriptions (endpoint, p256dh, auth) VALUES ($1, $2, $3)
+     ON CONFLICT (endpoint) DO UPDATE SET p256dh = $2, auth = $3`,
+    [sub.endpoint, sub.p256dh, sub.auth]
+  );
+}
+
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await ensureSchema();
+  await getPool().query(`DELETE FROM push_subscriptions WHERE endpoint = $1`, [endpoint]);
+}
+
+export async function getPushSubscriptions(): Promise<PushSub[]> {
+  await ensureSchema();
+  const res = await getPool().query(`SELECT endpoint, p256dh, auth FROM push_subscriptions`);
+  return res.rows as PushSub[];
 }
 
 export async function getBriefing(dateKst: string): Promise<Briefing | null> {
