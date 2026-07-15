@@ -48,17 +48,23 @@ Rule of thumb: if the post gives the reader something concrete they could act on
 Tie-breaker: "Would a Korean AI developer want a push-notification-level interrupt for this?" If no → 중요 at most.
 Same-event clustering: when several items describe ONE launch event (a flagship model release plus its demos, variants, or minor sub-announcements), assign 속보 to only the single primary/flagship item. Mark the satellites as "duplicate" if they add nothing, or demote them to 중요/참고 if they carry independent value. Never stack multiple 속보 rows for one event.
 
-### 중요 (Important) — worth reading today; changes what a practitioner might do this week. Qualifies if ANY of:
-1. Non-flagship model releases: minor versions, open-weights releases, notable fine-tunes from major labs or top open-source orgs (Mistral, Qwen, DeepSeek).
-2. Significant updates to practitioner tools: Cursor, Claude Code, Copilot, major framework/SDK releases with meaningful new capability.
-3. Benchmark/evaluation results that materially shift model rankings or reveal capability/safety findings.
-4. Funding $100M–$1B, major partnerships, significant enterprise AI deals.
-5. Research with immediate practical implications (techniques practitioners can apply now).
+### 중요 (Important) — target ≤ 20% of published items. The test is FORCING: a practitioner would change a decision or take an action THIS WEEK because of it (switch/adopt/migrate a tool or model, patch a security exposure, adjust a budget, react to a rule). "Useful to know" or "worth reading" is NOT enough — that is 참고. Qualifies if ANY of:
+1. Non-flagship model releases from a MAJOR lab or top open-source org (Mistral, Qwen, DeepSeek) that a practitioner would realistically evaluate now — not every fine-tune or small model.
+2. A NAMED mainstream tool (Cursor, Claude Code, Copilot, ChatGPT, major framework/SDK) ships a capability that changes how one works — not "a tool exists / was released".
+3. Benchmark/eval results that MATERIALLY shift model rankings or reveal a real capability/safety finding — not routine "we compared some models".
+4. Funding $100M–$1B, major partnerships, significant enterprise deals.
+5. A confirmed security/privacy exposure or outage in a tool practitioners use.
 6. Major Korean AI industry news: Naver, Kakao, LG AI연구원, Samsung, SKT, or Korean AI policy.
-7. Proposed (not yet effective) regulation or major government AI initiatives.
-When in doubt between 중요 and 참고, choose 참고 — 중요 requires a CLEAR practitioner impact this week, not merely an interesting item.
+7. Regulation (effective OR proposed) or a government AI initiative that changes what practitioners/companies may do.
 
-### 참고 (Reference) — everything relevant that doesn't meet the bars above: papers with traction, explanatory lab posts, interviews/analysis, funding < $100M, smaller launches, follow-up coverage.
+NOT 중요 — these are 참고 (with is_tip=true where it applies) no matter how good:
+- Tips, how-tos, workflows, prompt techniques, tool configs, "I built X" project shares, context-management tricks.
+- Model/tool/image-gen COMPARISONS and "which is better" writeups, unless the result itself shifts the mainstream ranking.
+- A single research paper, a new small/niche tool or library, a clever demo.
+- Adoption/growth stats, commentary, opinion, interviews, analysis.
+When in doubt between 중요 and 참고, choose 참고. Roughly 3 of every 4 publishable items are 참고.
+
+### 참고 (Reference) — the DEFAULT tier for everything relevant: tips and how-tos, papers with traction, tool/library releases, comparisons, explanatory lab posts, interviews/analysis, funding < $100M, smaller launches, growth stats, follow-up coverage.
 
 ## Duplicate detection (cross-language)
 You are given a list of stories ALREADY in the feed, each with a numeric id. If the new item covers the SAME underlying news event as one already listed — even in a different language, from a different source, or with a different headline/angle — output action "duplicate" with duplicate_of set to that story's id (tier null, headline_ko and why_ko empty strings). For any other action, duplicate_of is null. Korean outlets routinely re-report or translate English-language stories hours later; such re-coverage IS a duplicate. Two examples of the same story: "OpenAI releases GPT-5.6" and "오픈AI, GPT-5.6 출시". A follow-up that adds SUBSTANTIAL NEW information (new numbers, a new development, a reaction with news value) is NOT a duplicate — publish it. When unsure whether it's genuinely new, prefer "duplicate" for translated re-coverage and "publish" for original reporting.
