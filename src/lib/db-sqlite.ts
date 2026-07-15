@@ -252,11 +252,13 @@ export async function seedXAccounts(rows: XAccountRow[]): Promise<void> {
   tx(rows);
 }
 
-export async function addXAccount(handle: string, kind: string): Promise<void> {
+/** Returns false if the handle is already in the roster (no change made). */
+export async function addXAccount(handle: string, kind: string): Promise<boolean> {
   const d = await getDb();
-  d.prepare(
-    `INSERT INTO x_accounts (handle, kind) VALUES (@handle, @kind) ON CONFLICT (handle) DO UPDATE SET kind = @kind`
-  ).run({ handle, kind });
+  const info = d
+    .prepare(`INSERT INTO x_accounts (handle, kind) VALUES (@handle, @kind) ON CONFLICT (handle) DO NOTHING`)
+    .run({ handle, kind });
+  return info.changes > 0;
 }
 
 export async function removeXAccount(handle: string): Promise<void> {

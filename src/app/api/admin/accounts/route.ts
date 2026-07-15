@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
   const kind = body.kind === "org" ? "org" : body.kind === "people" ? "people" : null;
   if (!handle) return NextResponse.json({ error: "유효한 X 핸들이 아닙니다" }, { status: 400 });
   if (!kind) return NextResponse.json({ error: "kind must be org or people" }, { status: 400 });
-  await addXAccount(handle, kind);
+  const inserted = await addXAccount(handle, kind);
+  if (!inserted) return NextResponse.json({ error: `@${handle}는 이미 목록에 있습니다` }, { status: 409 });
   return NextResponse.json({ ok: true, handle, kind });
 }
 

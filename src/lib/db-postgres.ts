@@ -264,12 +264,14 @@ export async function seedXAccounts(rows: XAccountRow[]): Promise<void> {
   }
 }
 
-export async function addXAccount(handle: string, kind: string): Promise<void> {
+/** Returns false if the handle is already in the roster (no change made). */
+export async function addXAccount(handle: string, kind: string): Promise<boolean> {
   await ensureSchema();
-  await getPool().query(
-    `INSERT INTO x_accounts (handle, kind) VALUES ($1, $2) ON CONFLICT (handle) DO UPDATE SET kind = $2`,
+  const res = await getPool().query(
+    `INSERT INTO x_accounts (handle, kind) VALUES ($1, $2) ON CONFLICT (handle) DO NOTHING`,
     [handle, kind]
   );
+  return (res.rowCount ?? 0) > 0;
 }
 
 export async function removeXAccount(handle: string): Promise<void> {
