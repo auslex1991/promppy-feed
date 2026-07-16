@@ -80,6 +80,7 @@ async function getDb(): Promise<BetterSqlite3.Database> {
     `ALTER TABLE items ADD COLUMN dup_of INTEGER`,
     `ALTER TABLE items ADD COLUMN summary_ko TEXT`,
     `ALTER TABLE items ADD COLUMN is_tip INTEGER NOT NULL DEFAULT 0`,
+    `ALTER TABLE items ADD COLUMN topics TEXT NOT NULL DEFAULT '[]'`,
   ]) {
     try {
       db.exec(ddl);
@@ -136,7 +137,8 @@ export async function applyClassification(id: number, c: Classification): Promis
   const status = c.action === "publish" ? "published" : c.action === "duplicate" ? "duplicate" : "skipped";
   d.prepare(
     `UPDATE items SET status = @status, tier = @tier, headline_ko = @headline,
-     why_ko = @why, dup_of = @dupOf, is_tip = @isTip, classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
+     why_ko = @why, dup_of = @dupOf, is_tip = @isTip, topics = @topics,
+     classified_at = strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id = @id`
   ).run({
     id,
     status,
@@ -145,6 +147,7 @@ export async function applyClassification(id: number, c: Classification): Promis
     why: c.why_ko || null,
     dupOf: c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
     isTip: c.action === "publish" && c.is_tip ? 1 : 0,
+    topics: JSON.stringify(c.topics ?? []),
   });
 }
 

@@ -10,6 +10,28 @@ import { geminiJson } from "./providers/gemini";
 //   polish    → Claude Opus        (rewrites headline/why for 속보/중요 only —
 //                                   the rows readers actually scan)
 //   briefing  → Claude Opus        (1 call/day)
+// Controlled topic vocabulary — mirrored in SYSTEM_PROMPT. These slugs become
+// URLs (/topic/<slug>) later, so they must stay stable, and anything the model
+// invents outside this set is dropped rather than persisted.
+export const TOPIC_SLUGS = new Set([
+  "openai", "anthropic", "google", "meta", "xai", "mistral", "deepseek", "qwen",
+  "nvidia", "microsoft", "apple", "perplexity", "korea-ai",
+  "chatgpt", "claude", "gemini", "grok", "llama", "gpt", "codex", "cursor",
+  "copilot", "claude-code", "huggingface",
+  "agent", "rag", "fine-tuning", "open-source", "benchmark", "funding",
+  "regulation", "security", "hardware", "pricing", "prompt", "mcp", "research",
+  "multimodal", "image-gen", "video-gen", "robotics", "career",
+]);
+
+function cleanTopics(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out = raw
+    .filter((t): t is string => typeof t === "string")
+    .map((t) => t.trim().toLowerCase())
+    .filter((t) => TOPIC_SLUGS.has(t));
+  return [...new Set(out)].slice(0, 3);
+}
+
 const GATE_MODEL = "claude-haiku-4-5";
 const MODEL = "claude-opus-4-8";
 const GEMINI_GATE_MODEL = "gemini-3.1-flash-lite";
@@ -69,6 +91,12 @@ When in doubt between 중요 and 참고, choose 참고. Roughly 3 of every 4 pub
 ## Duplicate detection (cross-language)
 You are given a list of stories ALREADY in the feed, each with a numeric id. If the new item covers the SAME underlying news event as one already listed — even in a different language, from a different source, or with a different headline/angle — output action "duplicate" with duplicate_of set to that story's id (tier null, headline_ko and why_ko empty strings). For any other action, duplicate_of is null. Korean outlets routinely re-report or translate English-language stories hours later; such re-coverage IS a duplicate. Two examples of the same story: "OpenAI releases GPT-5.6" and "오픈AI, GPT-5.6 출시". A follow-up that adds SUBSTANTIAL NEW information (new numbers, a new development, a reaction with news value) is NOT a duplicate — publish it. When unsure whether it's genuinely new, prefer "duplicate" for translated re-coverage and "publish" for original reporting.
 
+## topics
+Tag each PUBLISHED item with 1–3 topic slugs from this list — nothing else, no invented slugs. Pick only what the item is genuinely ABOUT (a passing mention is not a topic). Empty array when nothing fits or the action is not "publish".
+openai, anthropic, google, meta, xai, mistral, deepseek, qwen, nvidia, microsoft, apple, perplexity, korea-ai,
+chatgpt, claude, gemini, grok, llama, gpt, codex, cursor, copilot, claude-code, huggingface,
+agent, rag, fine-tuning, open-source, benchmark, funding, regulation, security, hardware, pricing, prompt, mcp, research, multimodal, image-gen, video-gen, robotics, career
+
 ## is_tip flag
 Set is_tip=true when the published item's core value is a practical, reusable technique the reader can apply — a workflow, prompt pattern, tool setup, optimization, debugging method, or how-to with concrete specifics. News about products, companies, research announcements, funding, or industry events is is_tip=false even when useful. When action is not "publish", is_tip=false.
 
@@ -87,8 +115,9 @@ const OUTPUT_SCHEMA = {
     why_ko: { type: "string" },
     duplicate_of: { anyOf: [{ type: "integer" }, { type: "null" }] },
     is_tip: { type: "boolean" },
+    topics: { type: "array", items: { type: "string" } },
   },
-  required: ["action", "tier", "headline_ko", "why_ko", "duplicate_of", "is_tip"],
+  required: ["action", "tier", "headline_ko", "why_ko", "duplicate_of", "is_tip", "topics"],
   additionalProperties: false,
 };
 
@@ -181,6 +210,7 @@ const GEMINI_CLASSIFY_SCHEMA = {
     why_ko: { type: "STRING" },
     duplicate_of: { type: "INTEGER", nullable: true },
     is_tip: { type: "BOOLEAN" },
+    topics: { type: "ARRAY", items: { type: "STRING" } },
   },
   required: ["action", "headline_ko", "why_ko"],
 };
@@ -260,6 +290,7 @@ ${input.excerpt.slice(0, 1500)}`;
         why_ko: draft.why_ko ?? "",
         duplicate_of: draft.duplicate_of ?? null,
         is_tip: draft.is_tip ?? false,
+        topics: draft.action === "publish" ? cleanTopics(draft.topics) : [],
       };
       if (result.action === "publish" && (result.tier === "속보" || result.tier === "중요")) {
         try {
@@ -295,7 +326,9 @@ ${input.excerpt.slice(0, 1500)}`;
   }
   const text = response.content.find((b) => b.type === "text");
   if (!text || text.type !== "text") throw new Error("no text block in classification response");
-  return JSON.parse(text.text) as Classification;
+  const parsed = JSON.parse(text.text) as Classification;
+  parsed.topics = parsed.action === "publish" ? cleanTopics(parsed.topics) : [];
+  return parsed;
 }
 
 export interface BatchItem {
@@ -321,6 +354,7 @@ const GEMINI_BATCH_SCHEMA = {
           why_ko: { type: "STRING" },
           duplicate_of: { type: "INTEGER", nullable: true },
           is_tip: { type: "BOOLEAN" },
+          topics: { type: "ARRAY", items: { type: "STRING" } },
         },
         required: ["id", "action", "headline_ko", "why_ko"],
       },
@@ -380,6 +414,7 @@ ${itemBlocks}`;
       why_ko: r.why_ko ?? "",
       duplicate_of: r.duplicate_of ?? null,
       is_tip: r.is_tip ?? false,
+      topics: r.action === "publish" ? cleanTopics(r.topics) : [],
     });
   }
 

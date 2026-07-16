@@ -9,7 +9,15 @@ import Reactions from "@/components/Reactions";
 import ThreadsShareButton from "@/components/ThreadsShareButton";
 import PushToggle from "@/components/PushToggle";
 import Ticker from "@/components/Ticker";
+import TrackedLink from "@/components/TrackedLink";
 import { pickRelated } from "@/lib/related";
+
+// Item pages are ~85% of traffic and were server-rendered on every hit, each
+// paying for live DB queries (including the 300-item relatedness pool).
+// Published items barely change, so cache them: near-instant pages for the
+// Threads/Google arrivals, less Neon and Vercel compute. Cost: reaction counts
+// and the related/ticker lists can be up to 5 minutes stale on first paint.
+export const revalidate = 300;
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -135,7 +143,8 @@ export default async function ItemPage({ params }: Props) {
       </article>
 
       {nextItem && (
-        <Link
+        <TrackedLink
+          event="next_news_click"
           href={`/item/${nextItem.id}`}
           className="group mt-6 block rounded-lg border border-[#30363d] bg-white/[0.02] p-5 transition-colors hover:border-[#8b949e] hover:bg-white/[0.04]"
         >
@@ -154,7 +163,7 @@ export default async function ItemPage({ params }: Props) {
             <span className="group-hover:underline">{nextItem.headlineKo}</span>
           </p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-[#8b949e]">{nextItem.whyKo}</p>
-        </Link>
+        </TrackedLink>
       )}
 
       <section className="mt-8 rounded-lg border border-[#ffb020]/25 bg-[#ffb020]/[0.04] p-5 text-center">
@@ -165,12 +174,13 @@ export default async function ItemPage({ params }: Props) {
           15분마다 속보·중요·팁 자동 수집 · 한국어 요약 제공
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <Link
+          <TrackedLink
+            event="cta_feed_click"
             href="/"
             className="rounded-full bg-[#ffb020] px-4 py-1.5 font-mono-ts text-[13px] font-medium text-[#0a0e14] transition-colors hover:bg-[#ffc247]"
           >
             실시간 피드 보기 →
-          </Link>
+          </TrackedLink>
           <PushToggle />
           <a
             href="/rss.xml"
@@ -210,7 +220,11 @@ export default async function ItemPage({ params }: Props) {
           <ul className="mt-2 space-y-1.5">
             {related.map((r) => (
               <li key={r.id} className="text-[13px]">
-                <Link href={`/item/${r.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
+                <TrackedLink
+                  event="related_click"
+                  href={`/item/${r.id}`}
+                  className="text-[#c9d1d9] hover:text-white hover:underline"
+                >
                   <span
                     className="mr-1.5 font-mono-ts text-[11px]"
                     style={{ color: TIER_COLOR[r.tier] ?? TIER_COLOR["참고"] }}
@@ -218,7 +232,7 @@ export default async function ItemPage({ params }: Props) {
                     [{r.tier}]
                   </span>
                   {r.headlineKo}
-                </Link>
+                </TrackedLink>
               </li>
             ))}
           </ul>
@@ -231,7 +245,11 @@ export default async function ItemPage({ params }: Props) {
           <ul className="mt-2 space-y-1.5">
             {latest.map((l) => (
               <li key={l.id} className="text-[13px]">
-                <Link href={`/item/${l.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
+                <TrackedLink
+                  event="latest_click"
+                  href={`/item/${l.id}`}
+                  className="text-[#c9d1d9] hover:text-white hover:underline"
+                >
                   <span
                     className="mr-1.5 font-mono-ts text-[11px]"
                     style={{ color: TIER_COLOR[l.tier] ?? TIER_COLOR["참고"] }}
@@ -239,7 +257,7 @@ export default async function ItemPage({ params }: Props) {
                     [{l.tier}]
                   </span>
                   {l.headlineKo}
-                </Link>
+                </TrackedLink>
               </li>
             ))}
           </ul>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@vercel/analytics";
 
 /**
  * One-tap re-share of a promppy item to Threads (the site's #1 referral
@@ -26,6 +27,7 @@ export default function ThreadsShareButton({
     <button
       onClick={(e) => {
         e.stopPropagation();
+        track("threads_share");
         navigator.clipboard?.writeText(blurb).catch(() => {});
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);

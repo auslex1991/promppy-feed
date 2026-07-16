@@ -26,6 +26,8 @@ export interface Classification {
   duplicate_of?: number | null;
   /** Practical tip/technique with a concrete reusable takeaway (팁 badge in the feed). */
   is_tip?: boolean;
+  /** 1–3 slugs from the controlled vocabulary in classify.ts (future topic pages). */
+  topics?: string[];
 }
 
 /** Compact recently-published context passed to the classifier for cross-language dedup. */

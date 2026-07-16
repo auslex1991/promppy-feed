@@ -73,6 +73,7 @@ async function runSchemaDdl(): Promise<void> {
       ALTER TABLE items ADD COLUMN IF NOT EXISTS dup_of INTEGER;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS summary_ko TEXT;
       ALTER TABLE items ADD COLUMN IF NOT EXISTS is_tip BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE items ADD COLUMN IF NOT EXISTS topics TEXT NOT NULL DEFAULT '[]';
       CREATE TABLE IF NOT EXISTS reactions (
         item_id INTEGER NOT NULL,
         kind TEXT NOT NULL,
@@ -155,7 +156,7 @@ function statusFor(action: Classification["action"]): string {
 export async function applyClassification(id: number, c: Classification): Promise<void> {
   await getPool().query(
     `UPDATE items SET status = $1, tier = $2, headline_ko = $3, why_ko = $4,
-     dup_of = $5, is_tip = $6, classified_at = now() WHERE id = $7`,
+     dup_of = $5, is_tip = $6, topics = $7, classified_at = now() WHERE id = $8`,
     [
       statusFor(c.action),
       c.tier,
@@ -163,6 +164,7 @@ export async function applyClassification(id: number, c: Classification): Promis
       c.why_ko || null,
       c.action === "duplicate" ? (c.duplicate_of ?? null) : null,
       c.action === "publish" && (c.is_tip ?? false),
+      JSON.stringify(c.topics ?? []),
       id,
     ]
   );
