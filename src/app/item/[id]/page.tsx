@@ -8,6 +8,8 @@ import CopyLinkButton from "@/components/CopyLinkButton";
 import Reactions from "@/components/Reactions";
 import ThreadsShareButton from "@/components/ThreadsShareButton";
 import PushToggle from "@/components/PushToggle";
+import Ticker from "@/components/Ticker";
+import { pickRelated } from "@/lib/related";
 
 interface Props {
   params: Promise<{ id: string }>;
@@ -49,19 +51,31 @@ export default async function ItemPage({ params }: Props) {
   const item = await loadItem(id);
   if (!item) notFound();
 
-  const [dups, latest, reactions] = await Promise.all([
+  const [dups, candidates, reactions] = await Promise.all([
     getDupCoverage(item.id),
-    getLatestPublished(item.id, 5),
+    getLatestPublished(item.id, 300),
     getReactionsFor([item.id]),
   ]);
   const color = TIER_COLOR[item.tier] ?? TIER_COLOR["참고"];
   const sourceName = SOURCE_NAMES[item.sourceId] ?? item.sourceId;
+
+  // One obvious next click: the freshest item that actually matters.
+  const nextItem = candidates.find((c) => c.tier === "속보" || c.tier === "중요") ?? candidates[0];
+  const related = pickRelated(item, candidates, 5).filter((r) => r.id !== nextItem?.id);
+  const shownIds = new Set([nextItem?.id, ...related.map((r) => r.id)]);
+  const latest = candidates.filter((c) => !shownIds.has(c.id)).slice(0, 5);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:py-16">
       <Link href="/" className="font-mono-ts text-sm text-[#8b949e] hover:text-white">
         ← promppy<span className="text-[#ffb020]">_</span> 실시간 AI 뉴스
       </Link>
+
+      {/* Live 속보/중요 strip: most visitors land here from a shared link and
+          never see the homepage, so this is their only signal the feed is live. */}
+      <div className="mt-4">
+        <Ticker items={candidates.slice(0, 40)} now={Date.now()} />
+      </div>
 
       <article className="mt-8 rounded-lg border border-[#161b22] bg-white/[0.02] p-6 sm:p-8" style={{ borderLeft: `3px solid ${color}` }}>
         <div className="flex items-center gap-3 font-mono-ts text-xs text-[#8b949e]">
@@ -120,6 +134,29 @@ export default async function ItemPage({ params }: Props) {
         </div>
       </article>
 
+      {nextItem && (
+        <Link
+          href={`/item/${nextItem.id}`}
+          className="group mt-6 block rounded-lg border border-[#30363d] bg-white/[0.02] p-5 transition-colors hover:border-[#8b949e] hover:bg-white/[0.04]"
+        >
+          <span className="font-mono-ts text-[11px] text-[#8b949e]">다음 뉴스 →</span>
+          <p className="mt-1.5 flex items-start gap-2 text-[16px] font-medium leading-snug text-[#e6edf3]">
+            <span
+              className="mt-0.5 shrink-0 rounded border px-1.5 py-px font-mono-ts text-[11px]"
+              style={{
+                color: TIER_COLOR[nextItem.tier] ?? TIER_COLOR["참고"],
+                borderColor: `${TIER_COLOR[nextItem.tier] ?? TIER_COLOR["참고"]}66`,
+                backgroundColor: `${TIER_COLOR[nextItem.tier] ?? TIER_COLOR["참고"]}22`,
+              }}
+            >
+              {nextItem.tier}
+            </span>
+            <span className="group-hover:underline">{nextItem.headlineKo}</span>
+          </p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-[#8b949e]">{nextItem.whyKo}</p>
+        </Link>
+      )}
+
       <section className="mt-8 rounded-lg border border-[#ffb020]/25 bg-[#ffb020]/[0.04] p-5 text-center">
         <p className="text-[15px] text-[#e6edf3]">
           <span className="font-semibold">promppy</span>는 한국 AI 실무자를 위한 실시간 AI 뉴스 터미널입니다.
@@ -167,6 +204,27 @@ export default async function ItemPage({ params }: Props) {
         </section>
       )}
 
+      {related.length > 0 && (
+        <section className="mt-8">
+          <h2 className="font-mono-ts text-xs font-semibold text-[#8b949e]">관련 뉴스</h2>
+          <ul className="mt-2 space-y-1.5">
+            {related.map((r) => (
+              <li key={r.id} className="text-[13px]">
+                <Link href={`/item/${r.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
+                  <span
+                    className="mr-1.5 font-mono-ts text-[11px]"
+                    style={{ color: TIER_COLOR[r.tier] ?? TIER_COLOR["참고"] }}
+                  >
+                    [{r.tier}]
+                  </span>
+                  {r.headlineKo}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       {latest.length > 0 && (
         <section className="mt-8">
           <h2 className="font-mono-ts text-xs font-semibold text-[#8b949e]">최신 뉴스</h2>
@@ -188,14 +246,6 @@ export default async function ItemPage({ params }: Props) {
         </section>
       )}
 
-      <p className="mt-8 text-center">
-        <Link
-          href="/"
-          className="font-mono-ts text-sm text-[#ffb020] hover:underline"
-        >
-          더 많은 실시간 AI 뉴스 →
-        </Link>
-      </p>
     </main>
   );
 }
