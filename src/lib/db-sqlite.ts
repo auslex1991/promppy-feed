@@ -358,7 +358,7 @@ export async function getFeed(limit = 100): Promise<FeedItem[]> {
       `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
        FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT ?`
     )
-    .all(limit * 4) as Array<{
+    .all(limit * 2) as Array<{
     id: number;
     source_id: string;
     url: string;

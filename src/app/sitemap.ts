@@ -6,7 +6,13 @@ export const revalidate = 3600;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Recent published items (plain reverse-chronological, generous window).
-  const items = await getFeedBefore(new Date().toISOString(), 500);
+  // Never throw: a DB outage here would fail the whole build (see app/page.tsx).
+  let items: Awaited<ReturnType<typeof getFeedBefore>> = [];
+  try {
+    items = await getFeedBefore(new Date().toISOString(), 500);
+  } catch (e) {
+    console.error("sitemap: item fetch failed, static URLs only:", e instanceof Error ? e.message : e);
+  }
   return [
     { url: SITE_URL, changeFrequency: "hourly", priority: 1 },
     { url: `${SITE_URL}/about`, changeFrequency: "monthly", priority: 0.5 },

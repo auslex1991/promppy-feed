@@ -17,7 +17,11 @@ import { pickRelated } from "@/lib/related";
 // Published items barely change, so cache them: near-instant pages for the
 // Threads/Google arrivals, less Neon and Vercel compute. Cost: reaction counts
 // and the related/ticker lists can be up to 5 minutes stale on first paint.
-export const revalidate = 300;
+// 15min: a published item's own content never changes — only the related /
+// ticker lists age, and those tolerate staleness. Longer windows mean fewer
+// regenerations, each of which costs a multi-hundred-row DB read (Neon egress
+// is a hard quota, and exhausting it takes the whole site down).
+export const revalidate = 900;
 
 // `revalidate` alone does NOT cache a dynamic segment — verified in prod, every
 // hit was x-vercel-cache MISS. Declaring generateStaticParams puts the route in
@@ -71,7 +75,7 @@ export default async function ItemPage({ params }: Props) {
 
   const [dups, candidates, reactions] = await Promise.all([
     getDupCoverage(item.id),
-    getLatestPublished(item.id, 300),
+    getLatestPublished(item.id, 150),
     getReactionsFor([item.id]),
   ]);
   const color = TIER_COLOR[item.tier] ?? TIER_COLOR["참고"];

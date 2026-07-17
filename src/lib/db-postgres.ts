@@ -364,12 +364,14 @@ export async function saveSummary(id: number, summaryKo: string): Promise<void> 
 
 export async function getFeed(limit = 100): Promise<FeedItem[]> {
   await ensureSchema();
-  // Fetch a recency-sorted candidate pool with headroom; per-source caps and
-  // no-consecutive-source interleaving happen in arrangeFeed (db-shared.ts).
+  // Recency-sorted candidate pool with headroom for arrangeFeed's per-source
+  // caps and interleaving (db-shared.ts). Headroom is 2× rather than 4×: this
+  // query runs on every feed poll and was a top consumer of Neon egress, and
+  // now that x/reddit are uncapped the caps rarely bind enough to need 4×.
   const res = await getPool().query(
     `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
      FROM items WHERE status = 'published' ORDER BY published_at DESC LIMIT $1`,
-    [limit * 4]
+    [limit * 2]
   );
   const rows: FeedItem[] = res.rows.map((r) => ({
     id: r.id,

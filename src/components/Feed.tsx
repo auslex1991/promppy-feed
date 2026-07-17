@@ -9,7 +9,10 @@ import Ticker from "./Ticker";
 import PushToggle from "./PushToggle";
 import ThreadsShareButton from "./ThreadsShareButton";
 
-const POLL_MS = 45_000;
+// The crawl only publishes every 15 min, so polling every 45s bought nothing
+// and multiplied DB egress across every open tab (it helped exhaust the Neon
+// transfer quota). The response is CDN-cached for 60s anyway.
+const POLL_MS = 150_000;
 // Primary cadence is 15 min (cron-job.org), but the backstop is the HOURLY
 // GitHub Action — keep the LIVE threshold above one backstop interval so a
 // cron-job.org outage covered by the backstop doesn't flap to 지연.

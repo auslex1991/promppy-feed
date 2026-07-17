@@ -14,8 +14,14 @@ function esc(s: string): string {
 
 export async function GET() {
   // Plain reverse-chronological (no display caps/interleave — readers'
-  // clients sort and dedupe themselves).
-  const items = await getFeedBefore(new Date().toISOString(), 50);
+  // clients sort and dedupe themselves). Never throw: this route is
+  // prerendered, so a DB outage here would fail the build (see app/page.tsx).
+  let items: Awaited<ReturnType<typeof getFeedBefore>> = [];
+  try {
+    items = await getFeedBefore(new Date().toISOString(), 50);
+  } catch (e) {
+    console.error("rss: item fetch failed, empty channel:", e instanceof Error ? e.message : e);
+  }
 
   const entries = items
     .map((i) => {
