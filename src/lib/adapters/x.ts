@@ -1,5 +1,5 @@
 import type { RawItem } from "../types";
-import { getXAccounts, seedXAccounts } from "../db";
+import { getXAccounts, seedXAccounts, lastSuccessfulRun } from "../db";
 
 /**
  * Posts from X/Twitter via twitterapi.io advanced_search (the official X
@@ -66,12 +66,22 @@ export async function loadXRoster(): Promise<XRoster> {
   }
 }
 
-// The LLM gate judges substance from here — 5 likes only filters the posts
-// literally nobody engaged with; quality judgment belongs to the gate.
-// Kept this low on purpose: roster announcements often have few likes when
-// our 15-min crawl sees them first (user request 2026-07-14).
-const MIN_LIKES_PEOPLE = 5;
-const PEOPLE_WINDOW = "12h";
+// No like bar for roster accounts. We now fetch each roster tweet within
+// minutes of posting (see sinceTime below), when even a great post has 0-2
+// likes — any threshold would just drop good posts for being new. Substance
+// is the gate's job; anything that blows up later is still caught by the
+// viral/sweep passes.
+const MIN_LIKES_PEOPLE = 0;
+
+// Roster fetches ask only for tweets newer than the previous crawl, instead of
+// re-requesting a fixed window every run. twitterapi.io bills per tweet
+// RETURNED and our URL-dedup happens only after we've already paid, so a 12h
+// window on a 15-min cadence meant paying for the same tweets up to 48×.
+// (It was also silently lossy: every chunk hit the 20-tweet page cap with
+// "more pages available", so tweets beyond the newest 20 were never seen at
+// all — a narrow window is both cheaper AND more complete.)
+const SINCE_BUFFER_MS = 5 * 60_000; // clock skew / crawl overlap
+const MAX_LOOKBACK_MS = 12 * 3600_000; // cap the catch-up bill after an outage
 
 // Open discovery: viral AI tweets from ANYONE, not just the curated roster.
 // min_faves filters server-side, so we only pay for already-viral tweets.
@@ -189,24 +199,40 @@ async function search(key: string, query: string, pages = 1): Promise<XTweet[]> 
   return out;
 }
 
-function accountQueries(accounts: string[], window: string): string[] {
+function accountQueries(accounts: string[], sinceTime: number): string[] {
   const chunks: string[][] = [];
   for (let i = 0; i < accounts.length; i += CHUNK_SIZE) chunks.push(accounts.slice(i, i + CHUNK_SIZE));
-  return chunks.map((c) => `(${c.map((a) => `from:${a}`).join(" OR ")}) within_time:${window}`);
+  return chunks.map((c) => `(${c.map((a) => `from:${a}`).join(" OR ")}) since_time:${sinceTime}`);
+}
+
+/** Unix seconds to fetch roster tweets from: just after the previous crawl. */
+async function rosterSinceTime(): Promise<number> {
+  let lastMs = 0;
+  try {
+    const last = await lastSuccessfulRun();
+    if (last?.finished_at) lastMs = new Date(last.finished_at).getTime();
+  } catch {
+    // fall through to the max-lookback floor
+  }
+  const floor = Date.now() - MAX_LOOKBACK_MS;
+  return Math.floor(Math.max(lastMs - SINCE_BUFFER_MS, floor) / 1000);
 }
 
 export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]> {
   const key = process.env.TWITTERAPI_KEY;
   if (!key) return [];
 
-  const { org: ORG_ACCOUNTS, people: PEOPLE_ACCOUNTS } = await loadXRoster();
+  const [{ org: ORG_ACCOUNTS, people: PEOPLE_ACCOUNTS }, sinceTime] = await Promise.all([
+    loadXRoster(),
+    rosterSinceTime(),
+  ]);
 
-  // Orgs: short window (announcements matter immediately, no like-threshold to
-  // wait for) — cheaper under the 15-min crawl cadence. People: 12h so tweets
-  // have time to accumulate the like threshold. Viral: open search, anyone.
+  // Roster passes fetch only what's new since the last crawl. The viral pass
+  // still needs a rolling window: it catches tweets that cross the like bar
+  // hours after posting, which since_time would exclude by created_at.
   const searches = [
-    ...accountQueries(ORG_ACCOUNTS, "2h").map((q) => search(key, q)),
-    ...accountQueries(PEOPLE_ACCOUNTS, PEOPLE_WINDOW).map((q) => search(key, q)),
+    ...accountQueries(ORG_ACCOUNTS, sinceTime).map((q) => search(key, q)),
+    ...accountQueries(PEOPLE_ACCOUNTS, sinceTime).map((q) => search(key, q)),
     search(key, `${VIRAL_QUERY} within_time:6h`),
   ];
   // Slow-burn sweep: a tweet that crosses the viral bar 8+ hours after posting

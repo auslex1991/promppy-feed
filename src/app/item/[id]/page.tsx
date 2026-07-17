@@ -19,6 +19,16 @@ import { pickRelated } from "@/lib/related";
 // and the related/ticker lists can be up to 5 minutes stale on first paint.
 export const revalidate = 300;
 
+// `revalidate` alone does NOT cache a dynamic segment — verified in prod, every
+// hit was x-vercel-cache MISS. Declaring generateStaticParams puts the route in
+// static-generation mode, where params it doesn't list are generated at request
+// time and then cached per `revalidate` (dynamicParams defaults to true).
+// Returning [] prerenders nothing at build: no build-time DB load (this repo has
+// deadlocked on parallel build-time queries before), pages cache on first hit.
+export async function generateStaticParams() {
+  return [];
+}
+
 interface Props {
   params: Promise<{ id: string }>;
 }
