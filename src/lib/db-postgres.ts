@@ -23,7 +23,14 @@ const SCHEMA_LOCK_KEY = 7278_0001;
 
 function ensureSchema(): Promise<void> {
   if (!schemaReady) {
-    schemaReady = runSchemaDdl();
+    // Clear the cache on failure. Caching a REJECTED promise permanently
+    // poisons this module: every later call returns the same rejection, so a
+    // TRANSIENT DB outage (e.g. the Neon egress quota, 2026-07-17) kept every
+    // warm serverless instance failing long after the database recovered.
+    schemaReady = runSchemaDdl().catch((e) => {
+      schemaReady = null;
+      throw e;
+    });
   }
   return schemaReady;
 }
