@@ -57,37 +57,53 @@ export async function runCrawl(): Promise<CrawlStats> {
   let classified = 0;
   let duplicates = 0;
 
-  // Enrich + gate, collecting survivors for batched classification.
+  // Enrich + gate, collecting survivors for batched classification. Each
+  // item's enrich+gate is independent, so process them CONCURRENTLY: the gate
+  // is a per-item network round-trip and, when the LLM provider is slow (a
+  // Gemini latency spell once let a 65-item backlog blow the whole crawl
+  // budget with cls=0), a serial loop drains far too slowly to catch up.
   const survivors: BatchItem[] = [];
-  for (const p of pending) {
+  const GATE_CONCURRENCY = 6;
+  for (let i = 0; i < pending.length; i += GATE_CONCURRENCY) {
     if (Date.now() > deadline) {
       errors.push("time budget reached during gating — remaining items deferred to next crawl");
       break;
     }
-    try {
-      // Enrich short/empty excerpts with article text so the gate, the
-      // classification, and the item-page summary judge from real body text.
-      // (X posts and Reddit self-posts already carry their full text.)
-      let excerpt = p.excerpt;
-      if (excerpt.trim().length < 400 && p.source_id !== "x" && p.source_id !== "reddit") {
-        const article = await fetchArticleText(p.url);
-        if (article.length > excerpt.trim().length) excerpt = article;
+    const results = await Promise.all(
+      pending.slice(i, i + GATE_CONCURRENCY).map(async (p) => {
+        try {
+          // Enrich short/empty excerpts with article text so the gate, the
+          // classification, and the item-page summary judge from real body
+          // text. (X posts and Reddit self-posts already carry full text.)
+          let excerpt = p.excerpt;
+          if (excerpt.trim().length < 400 && p.source_id !== "x" && p.source_id !== "reddit") {
+            const article = await fetchArticleText(p.url);
+            if (article.length > excerpt.trim().length) excerpt = article;
+          }
+          const keep = await gateItem({ sourceId: p.source_id, title: p.title_orig, excerpt });
+          return { p, keep, excerpt };
+        } catch (e) {
+          return { p, error: e instanceof Error ? e.message : String(e) };
+        }
+      })
+    );
+    for (const r of results) {
+      if ("error" in r) {
+        errors.push(`gate #${r.p.id}: ${r.error}`);
+        continue;
       }
-      const keep = await gateItem({ sourceId: p.source_id, title: p.title_orig, excerpt });
-      if (!keep) {
-        await applyClassification(p.id, SKIP);
+      if (!r.keep) {
+        await applyClassification(r.p.id, SKIP);
         gatedOut++;
         continue;
       }
       survivors.push({
-        id: p.id,
-        sourceId: p.source_id,
-        title: p.title_orig,
-        publishedAt: p.published_at,
-        excerpt,
+        id: r.p.id,
+        sourceId: r.p.source_id,
+        title: r.p.title_orig,
+        publishedAt: r.p.published_at,
+        excerpt: r.excerpt,
       });
-    } catch (e) {
-      errors.push(`gate #${p.id}: ${e instanceof Error ? e.message : String(e)}`);
     }
   }
 

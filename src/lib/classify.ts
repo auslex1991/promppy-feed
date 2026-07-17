@@ -176,8 +176,11 @@ export async function gateItem(input: {
         256,
         100,
         // Fail-open semantics make retries pointless here — keep the gate fast
-        // so a Gemini incident can't eat the crawl's wall-clock budget.
-        { timeoutMs: 12000, attempts: 1 }
+        // so a Gemini latency spell can't eat the crawl's wall-clock budget.
+        // 7s: normal flash-lite gate calls return in 2-3s, so this only trips
+        // when Gemini is degraded, and failing open just sends the item to the
+        // (batched, more resilient) classifier — cheaper than stalling the run.
+        { timeoutMs: 7000, attempts: 1 }
       );
       return out.keep;
     } catch {
