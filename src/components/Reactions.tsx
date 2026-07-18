@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { REACTION_KINDS, REACTION_LABEL, type ReactionKind } from "@/lib/reactions";
 
 const STORE_KEY = "promppy:reactions";
@@ -29,18 +29,32 @@ function writeStore(store: Record<string, ReactionKind[]>) {
 export default function Reactions({
   itemId,
   initial,
+  refetch = false,
 }: {
   itemId: number;
   initial?: Record<string, number>;
+  /** Fetch live counts on mount. Needed where the page is long-ISR-cached
+   *  (item pages), so server-rendered counts aren't stale/frozen at 0. */
+  refetch?: boolean;
 }) {
   const [counts, setCounts] = useState<Record<string, number>>(initial ?? {});
   const [mine, setMine] = useState<ReactionKind[]>([]);
+  const touched = useRef(false);
 
   useEffect(() => {
     setMine(readStore()[String(itemId)] ?? []);
-  }, [itemId]);
+    if (!refetch) return;
+    fetch(`/api/react?itemId=${itemId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        // Don't clobber an optimistic tap that landed before this resolved.
+        if (d?.reactions && !touched.current) setCounts(d.reactions);
+      })
+      .catch(() => {});
+  }, [itemId, refetch]);
 
   const toggle = (kind: ReactionKind) => {
+    touched.current = true;
     const has = mine.includes(kind);
     const delta = has ? -1 : 1;
     const next = has ? mine.filter((k) => k !== kind) : [...mine, kind];

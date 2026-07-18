@@ -169,7 +169,7 @@ export default async function ItemPage({ params }: Props) {
         )}
 
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
-          <Reactions itemId={item.id} initial={reactions.get(item.id)} />
+          <Reactions itemId={item.id} initial={reactions.get(item.id)} refetch />
           <CopyLinkButton url={`${SITE_URL}/item/${item.id}`} />
           <ThreadsShareButton headlineKo={item.headlineKo} whyKo={item.whyKo} url={`${SITE_URL}/item/${item.id}`} />
         </div>
