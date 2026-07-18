@@ -2,7 +2,9 @@ import { getFeedBefore } from "@/lib/db";
 import { SITE_URL } from "@/lib/site";
 import { SOURCE_NAMES } from "@/lib/sources";
 
-export const revalidate = 300;
+// 30min: RSS readers poll infrequently and tolerate staleness; keeps ISR
+// writes low (a metered free-tier resource).
+export const revalidate = 1800;
 
 function esc(s: string): string {
   return s

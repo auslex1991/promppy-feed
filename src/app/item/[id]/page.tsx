@@ -17,11 +17,14 @@ import { pickRelated } from "@/lib/related";
 // Published items barely change, so cache them: near-instant pages for the
 // Threads/Google arrivals, less Neon and Vercel compute. Cost: reaction counts
 // and the related/ticker lists can be up to 5 minutes stale on first paint.
-// 15min: a published item's own content never changes — only the related /
-// ticker lists age, and those tolerate staleness. Longer windows mean fewer
-// regenerations, each of which costs a multi-hundred-row DB read (Neon egress
-// is a hard quota, and exhausting it takes the whole site down).
-export const revalidate = 900;
+// 6h: a published item's own content (headline/summary/why) NEVER changes —
+// only the secondary ticker/related/reactions age, and this is a deep-linked
+// page, not the live homepage, so hours of staleness there is fine. Every
+// regeneration is BOTH a Neon read AND a Vercel "ISR write" (a metered free-
+// tier resource — too-frequent revalidation on thousands of distinct item
+// URLs nearly exhausted the 200k/mo ISR-write quota, which pauses the project
+// at 100%). Long revalidate = mostly cheap cache hits, rare regeneration.
+export const revalidate = 21600;
 
 // `revalidate` alone does NOT cache a dynamic segment — verified in prod, every
 // hit was x-vercel-cache MISS. Declaring generateStaticParams puts the route in

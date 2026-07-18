@@ -2,7 +2,8 @@ import type { MetadataRoute } from "next";
 import { getFeedBefore } from "@/lib/db";
 import { SITE_URL } from "@/lib/site";
 
-export const revalidate = 3600;
+// 12h: the sitemap is for crawlers and tolerates staleness; keeps ISR writes low.
+export const revalidate = 43200;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Recent published items (plain reverse-chronological, generous window).

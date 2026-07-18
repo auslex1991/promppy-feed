@@ -1,9 +1,11 @@
 import Feed from "@/components/Feed";
 import { getFeedPayload } from "@/lib/feedPayload";
 
-// ISR: the feed is server-rendered into the HTML (SEO + fast first paint) and
-// regenerated at most once a minute; the client keeps live-polling on top.
-export const revalidate = 60;
+// ISR: the feed is server-rendered into the HTML (SEO + fast first paint); the
+// client hydrates and live-polls /api/feed (60s CDN cache) on top, so the SSR
+// snapshot only needs to be fresh-ish for first paint and crawlers. 10min keeps
+// ISR writes (a metered free-tier resource) low while the client stays live.
+export const revalidate = 600;
 
 export default async function Home() {
   // A DB outage must not fail the BUILD. Prerender crashes on any throw here,
