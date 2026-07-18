@@ -318,17 +318,65 @@ export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko
     .all(limit) as Array<{ headline_ko: string; why_ko: string; tier: Tier }>;
 }
 
+/** Published items tagged with a topic slug, newest first. */
+export async function getItemsByTopic(topic: string, limit = 50): Promise<FeedItem[]> {
+  const d = await getDb();
+  const rows = d
+    .prepare(
+      `SELECT i.id, i.source_id, i.url, i.title_orig, i.headline_ko, i.why_ko, i.tier, i.published_at, i.is_tip
+       FROM items i, json_each(i.topics) AS t
+       WHERE i.status = 'published' AND t.value = ?
+       ORDER BY i.published_at DESC LIMIT ?`
+    )
+    .all(topic, limit) as Array<{
+    id: number; source_id: string; url: string; title_orig: string; headline_ko: string;
+    why_ko: string; tier: Tier; published_at: string; is_tip: number;
+  }>;
+  return rows.map((r) => ({
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier,
+    publishedAt: r.published_at,
+    isTip: Boolean(r.is_tip),
+  }));
+}
+
+/** Topics that actually have published content (for the sitemap / index). */
+export async function getTopicCounts(min = 3): Promise<Array<{ topic: string; n: number }>> {
+  const d = await getDb();
+  return d
+    .prepare(
+      `SELECT t.value AS topic, count(*) AS n
+       FROM items i, json_each(i.topics) AS t
+       WHERE i.status = 'published'
+       GROUP BY t.value HAVING count(*) >= ? ORDER BY n DESC`
+    )
+    .all(min) as Array<{ topic: string; n: number }>;
+}
+
 export async function getItem(id: number): Promise<FeedItem | null> {
   const d = await getDb();
   const r = d
     .prepare(
-      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko, is_tip
+      `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko, is_tip, topics
        FROM items WHERE id = ? AND status = 'published'`
     )
     .get(id) as
-    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string; summary_ko: string | null; is_tip: number }
+    | { id: number; source_id: string; url: string; title_orig: string; headline_ko: string; why_ko: string; tier: Tier; published_at: string; summary_ko: string | null; is_tip: number; topics: string }
     | undefined;
   if (!r) return null;
+  let topics: string[] = [];
+  try {
+    const arr = JSON.parse(r.topics ?? "[]");
+    if (Array.isArray(arr)) topics = arr.filter((t): t is string => typeof t === "string");
+  } catch {
+    // leave empty
+  }
   return {
     id: r.id,
     sourceId: r.source_id,
@@ -340,6 +388,7 @@ export async function getItem(id: number): Promise<FeedItem | null> {
     tier: r.tier,
     publishedAt: r.published_at,
     isTip: Boolean(r.is_tip),
+    topics,
     summaryKo: r.summary_ko ?? null,
   };
 }

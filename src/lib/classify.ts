@@ -10,18 +10,11 @@ import { geminiJson } from "./providers/gemini";
 //   polish    → Claude Opus        (rewrites headline/why for 속보/중요 only —
 //                                   the rows readers actually scan)
 //   briefing  → Claude Opus        (1 call/day)
-// Controlled topic vocabulary — mirrored in SYSTEM_PROMPT. These slugs become
-// URLs (/topic/<slug>) later, so they must stay stable, and anything the model
-// invents outside this set is dropped rather than persisted.
-export const TOPIC_SLUGS = new Set([
-  "openai", "anthropic", "google", "meta", "xai", "mistral", "deepseek", "qwen",
-  "nvidia", "microsoft", "apple", "perplexity", "korea-ai",
-  "chatgpt", "claude", "gemini", "grok", "llama", "gpt", "codex", "cursor",
-  "copilot", "claude-code", "huggingface",
-  "agent", "rag", "fine-tuning", "open-source", "benchmark", "funding",
-  "regulation", "security", "hardware", "pricing", "prompt", "mcp", "research",
-  "multimodal", "image-gen", "video-gen", "robotics", "career",
-]);
+// Controlled topic vocabulary lives in topics.ts (shared with the /topic
+// pages) — mirrored in SYSTEM_PROMPT. Slugs are URLs: stable, and anything
+// the model invents outside the set is dropped rather than persisted.
+import { TOPIC_SLUGS } from "./topics";
+export { TOPIC_SLUGS };
 
 function cleanTopics(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [];

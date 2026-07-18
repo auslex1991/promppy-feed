@@ -71,6 +71,8 @@ export interface FeedItem {
   publishedAt: string;
   /** Practical tip/technique — rendered as a green 팁 badge. */
   isTip?: boolean;
+  /** Topic slugs (item page chips / topic pages; not carried in the feed list). */
+  topics?: string[];
   /** Reaction counts by kind (only kinds with count > 0). */
   reactions?: Record<string, number>;
   /** Korean article summary (item page only — not carried in the feed list). */

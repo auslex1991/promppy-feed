@@ -11,6 +11,7 @@ import PushToggle from "@/components/PushToggle";
 import Ticker from "@/components/Ticker";
 import TrackedLink from "@/components/TrackedLink";
 import { pickRelated } from "@/lib/related";
+import { topicLabel } from "@/lib/topics";
 
 // Item pages are ~85% of traffic and were server-rendered on every hit, each
 // paying for live DB queries (including the 300-item relatedness pool).
@@ -151,6 +152,21 @@ export default async function ItemPage({ params }: Props) {
             원문 보기 ↗
           </a>
         </div>
+
+        {(item.topics ?? []).length > 0 && (
+          <div className="mt-5 flex flex-wrap gap-2">
+            {(item.topics ?? []).map((t) => (
+              <TrackedLink
+                key={t}
+                event="topic_click"
+                href={`/topic/${t}`}
+                className="rounded-full border border-[#30363d] px-2.5 py-0.5 font-mono-ts text-[11px] text-[#8b949e] transition-colors hover:border-[#8b949e] hover:text-[#c9d1d9]"
+              >
+                #{topicLabel(t)}
+              </TrackedLink>
+            ))}
+          </div>
+        )}
 
         <div className="mt-6 flex flex-wrap items-center gap-x-4 gap-y-3">
           <Reactions itemId={item.id} initial={reactions.get(item.id)} />

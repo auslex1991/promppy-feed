@@ -341,10 +341,46 @@ export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko
   return res.rows;
 }
 
+/** Published items tagged with a topic slug, newest first. */
+export async function getItemsByTopic(topic: string, limit = 50): Promise<FeedItem[]> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
+     FROM items WHERE status = 'published' AND topics::jsonb ? $1
+     ORDER BY published_at DESC LIMIT $2`,
+    [topic, limit]
+  );
+  return res.rows.map((r) => ({
+    id: r.id,
+    sourceId: r.source_id,
+    sourceName: r.source_id,
+    url: r.url,
+    titleOrig: r.title_orig,
+    headlineKo: r.headline_ko,
+    whyKo: r.why_ko,
+    tier: r.tier as Tier,
+    publishedAt: new Date(r.published_at).toISOString(),
+    isTip: Boolean(r.is_tip),
+  }));
+}
+
+/** Topics that actually have published content (for the sitemap / index). */
+export async function getTopicCounts(min = 3): Promise<Array<{ topic: string; n: number }>> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT t.topic, count(*)::int AS n
+     FROM items, jsonb_array_elements_text(topics::jsonb) AS t(topic)
+     WHERE status = 'published'
+     GROUP BY t.topic HAVING count(*) >= $1 ORDER BY n DESC`,
+    [min]
+  );
+  return res.rows as Array<{ topic: string; n: number }>;
+}
+
 export async function getItem(id: number): Promise<FeedItem | null> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko, is_tip
+    `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, summary_ko, is_tip, topics
      FROM items WHERE id = $1 AND status = 'published'`,
     [id]
   );
@@ -361,8 +397,18 @@ export async function getItem(id: number): Promise<FeedItem | null> {
     tier: r.tier as Tier,
     publishedAt: new Date(r.published_at).toISOString(),
     isTip: Boolean(r.is_tip),
+    topics: safeTopics(r.topics),
     summaryKo: r.summary_ko ?? null,
   };
+}
+
+function safeTopics(raw: unknown): string[] {
+  try {
+    const arr = typeof raw === "string" ? JSON.parse(raw) : raw;
+    return Array.isArray(arr) ? arr.filter((t): t is string => typeof t === "string") : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function saveSummary(id: number, summaryKo: string): Promise<void> {
