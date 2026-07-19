@@ -32,11 +32,14 @@ export interface CrawlStats {
 export async function runCrawl(): Promise<CrawlStats> {
   const runId = await startRun();
   const errors: string[] = [];
-  // Wall-clock budget: Vercel kills the function at maxDuration (300s), which
-  // previously left runs unfinished and items re-processing forever during a
-  // provider incident. Stop classifying at 230s and finish cleanly — leftovers
-  // stay 'new' and the next crawl (15-min cadence) picks them up.
-  const deadline = Date.now() + 230_000;
+  // Wall-clock budget: on Vercel the function is killed at maxDuration (300s),
+  // which once left runs unfinished and items reprocessing forever during a
+  // provider incident. Stop classifying before that and finish cleanly —
+  // leftovers stay 'new' for the next crawl. Configurable because the crawl now
+  // runs on GitHub Actions (no 300s ceiling), where a longer budget drains a
+  // backlog in one run instead of several.
+  const budgetMs = Number(process.env.CRAWL_DEADLINE_MS) || 230_000;
+  const deadline = Date.now() + budgetMs;
 
   // Fetch every source concurrently; one failure never fails the run (SOURCES.md).
   const results = await Promise.all(SOURCES.map(fetchSource));

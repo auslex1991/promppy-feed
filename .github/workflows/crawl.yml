@@ -1,12 +1,16 @@
 name: crawl
 
-# Vercel Hobby crons are daily-only, so GitHub Actions drives the 15-minute
-# crawl cadence (SPEC.md §4). The Vercel cron remains as a daily backstop.
+# The crawl RUNS HERE now — it used to execute as a Vercel function, which
+# billed ~5 hrs/day of provisioned memory+CPU (~$22/mo, over half the bill).
+# GitHub Actions is free for public repos, which keeps Vercel inside its $20
+# credit. This job writes to the same Neon DB; the site serves the results
+# through its normal ISR/API caching, so nothing user-facing changes.
+#
+# GitHub's scheduler drifts (runs can be late or skipped), so */10 is used to
+# average out to roughly the intended ~15-minute freshness.
 on:
   schedule:
-    # Hourly backstop only — cron-job.org is the primary hourly trigger.
-    # :37 avoids the congested top-of-hour slot. Best-effort (GitHub may skip).
-    - cron: "37 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 concurrency:
@@ -16,17 +20,24 @@ concurrency:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 15
     steps:
-      - name: Trigger crawl endpoint
-        run: |
-          set -euo pipefail
-          response=$(curl -sS --max-time 600 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            -w "\n%{http_code}" \
-            https://promppy-feed.vercel.app/api/cron)
-          body=$(echo "$response" | sed '$d')
-          code=$(echo "$response" | tail -1)
-          echo "HTTP $code"
-          echo "$body"
-          [ "$code" = "200" ]
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Run crawl
+        run: npx tsx scripts/crawl-runner.mts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TWITTERAPI_KEY: ${{ secrets.TWITTERAPI_KEY }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          NEXT_PUBLIC_SITE_URL: https://www.promppy.com
+          # No 300s function ceiling here, so allow a longer budget: a backlog
+          # drains in one run instead of being deferred across several.
+          CRAWL_DEADLINE_MS: "600000"
