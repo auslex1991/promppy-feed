@@ -176,8 +176,7 @@ export default async function ItemPage({ params }: Props) {
       </article>
 
       {nextItem && (
-        <TrackedLink
-          event="next_news_click"
+        <Link
           href={`/item/${nextItem.id}`}
           className="group mt-6 block rounded-lg border border-[#30363d] bg-white/[0.02] p-5 transition-colors hover:border-[#8b949e] hover:bg-white/[0.04]"
         >
@@ -196,7 +195,7 @@ export default async function ItemPage({ params }: Props) {
             <span className="group-hover:underline">{nextItem.headlineKo}</span>
           </p>
           <p className="mt-1.5 text-[13px] leading-relaxed text-[#8b949e]">{nextItem.whyKo}</p>
-        </TrackedLink>
+        </Link>
       )}
 
       <section className="mt-8 rounded-lg border border-[#ffb020]/25 bg-[#ffb020]/[0.04] p-5 text-center">
@@ -207,13 +206,12 @@ export default async function ItemPage({ params }: Props) {
           15분마다 속보·중요·팁 자동 수집 · 한국어 요약 제공
         </p>
         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-          <TrackedLink
-            event="cta_feed_click"
+          <Link
             href="/"
             className="rounded-full bg-[#ffb020] px-4 py-1.5 font-mono-ts text-[13px] font-medium text-[#0a0e14] transition-colors hover:bg-[#ffc247]"
           >
             실시간 피드 보기 →
-          </TrackedLink>
+          </Link>
           <PushToggle />
           <a
             href="/rss.xml"
@@ -253,11 +251,7 @@ export default async function ItemPage({ params }: Props) {
           <ul className="mt-2 space-y-1.5">
             {related.map((r) => (
               <li key={r.id} className="text-[13px]">
-                <TrackedLink
-                  event="related_click"
-                  href={`/item/${r.id}`}
-                  className="text-[#c9d1d9] hover:text-white hover:underline"
-                >
+                <Link href={`/item/${r.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
                   <span
                     className="mr-1.5 font-mono-ts text-[11px]"
                     style={{ color: TIER_COLOR[r.tier] ?? TIER_COLOR["참고"] }}
@@ -265,7 +259,7 @@ export default async function ItemPage({ params }: Props) {
                     [{r.tier}]
                   </span>
                   {r.headlineKo}
-                </TrackedLink>
+                </Link>
               </li>
             ))}
           </ul>
@@ -278,11 +272,7 @@ export default async function ItemPage({ params }: Props) {
           <ul className="mt-2 space-y-1.5">
             {latest.map((l) => (
               <li key={l.id} className="text-[13px]">
-                <TrackedLink
-                  event="latest_click"
-                  href={`/item/${l.id}`}
-                  className="text-[#c9d1d9] hover:text-white hover:underline"
-                >
+                <Link href={`/item/${l.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
                   <span
                     className="mr-1.5 font-mono-ts text-[11px]"
                     style={{ color: TIER_COLOR[l.tier] ?? TIER_COLOR["참고"] }}
@@ -290,7 +280,7 @@ export default async function ItemPage({ params }: Props) {
                     [{l.tier}]
                   </span>
                   {l.headlineKo}
-                </TrackedLink>
+                </Link>
               </li>
             ))}
           </ul>

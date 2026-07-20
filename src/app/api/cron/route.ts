@@ -4,10 +4,12 @@ import { lastSuccessfulRun } from "@/lib/db";
 
 export const maxDuration = 300;
 
-// Crawl cadence. cron-job.org pings this endpoint every ~15 min; we dispatch a
-// GitHub Actions run when the feed is older than this. Below the ping interval
-// so every ping that finds stale data acts.
-const DISPATCH_AFTER_MS = 12 * 60_000;
+// Crawl cadence. cron-job.org pings every ~15 min and a crawl takes ~3 min, so
+// the feed is typically ~12 min old at ping time. A 12-minute threshold sat
+// exactly on that boundary: pings read "fresh", skipped, and the real cadence
+// degraded to ~30 min (observed 08:00/07:30/07:00/06:45). 8 min clears the
+// boundary so every ping after a completed crawl dispatches.
+const DISPATCH_AFTER_MS = 8 * 60_000;
 
 // Only if GitHub has clearly stopped delivering do we pay to crawl on Vercel.
 // Well above the dispatch threshold so a merely-slow Actions run doesn't
