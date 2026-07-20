@@ -98,7 +98,7 @@ export default async function AdvertisePage() {
       </section>
 
       <section className="mt-10">
-        <h2 className="text-lg font-semibold text-[#e6edf3]">싣지 않는 광고</h2>
+        <h2 className="text-lg font-semibold text-[#e6edf3]">광고 정책</h2>
         <p className="mt-3 text-[14px] leading-relaxed text-[#c9d1d9]">
           독자 신뢰가 이 매체의 전부입니다. 코인·도박·과장된 수익 보장, 그리고 AI 실무자와 무관한
           광고는 받지 않습니다. 기사와 광고는 언제나 명확히 구분됩니다.
