@@ -19,9 +19,9 @@ const GH_WORKFLOW = "crawl.yml";
 
 /**
  * Ask GitHub Actions to run the crawl. workflow_dispatch runs start promptly,
- * unlike `schedule` runs, which GitHub throttles hard on public repos —
- * measured gaps of 57–157 min against a */10 cron, which is why the schedule
- * alone couldn't hold a 15-minute cadence.
+ * unlike `schedule` runs, which GitHub throttles hard on public repos — we
+ * measured real gaps of 57-157 min against a ten-minute cron, which is why a
+ * schedule alone could not hold a 15-minute cadence.
  */
 async function dispatchGitHubCrawl(): Promise<{ ok: boolean; status: number; detail?: string }> {
   const token = process.env.GITHUB_DISPATCH_TOKEN;
