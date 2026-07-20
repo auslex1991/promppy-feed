@@ -1,7 +1,13 @@
 import { after, NextRequest, NextResponse } from "next/server";
 import { runCrawl } from "@/lib/crawl";
+import { lastSuccessfulRun } from "@/lib/db";
 
 export const maxDuration = 300;
+
+// How stale the feed must get before Vercel takes over from GitHub Actions.
+// Above the normal ~10-15 min cadence (plus GitHub's scheduler drift) so this
+// only fires on a real outage, not on ordinary jitter.
+const STALE_AFTER_MS = 35 * 60_000;
 
 export async function GET(req: NextRequest) {
   // Vercel Cron sends Authorization: Bearer <CRON_SECRET> when the env var is set.
@@ -10,20 +16,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  // THE CRAWL NO LONGER RUNS HERE BY DEFAULT. Executing it as a Vercel function
-  // billed ~5 hrs/day of provisioned memory+CPU (~$22/mo, over half the bill),
-  // so it moved to GitHub Actions (.github/workflows/crawl.yml — free for public
-  // repos). This endpoint stays as a cheap no-op so any leftover external pinger
-  // (cron-job.org) costs nothing instead of silently re-running the crawl here.
+  // The crawl normally runs on GitHub Actions (free for public repos); running
+  // it as a Vercel function cost ~$22/mo in provisioned memory. But GitHub is
+  // not a dependency we control — an Actions outage once left the feed 80+ min
+  // stale with nothing to fall back on. So this endpoint is a STALENESS-GATED
+  // FALLBACK, not a no-op: cron-job.org keeps pinging every 15 min, and we only
+  // pay for a Vercel crawl when GitHub has actually stopped delivering.
   //
-  // ?force=1 still runs it on Vercel — kept as a manual emergency path (e.g. if
-  // GitHub Actions is down); ?wait=1 additionally returns stats synchronously.
+  // ?force=1 bypasses the staleness check (manual run); ?wait=1 returns stats.
   const force = req.nextUrl.searchParams.get("force") === "1";
   if (!force) {
-    return NextResponse.json({
-      status: "noop",
-      detail: "crawl runs on GitHub Actions (.github/workflows/crawl.yml); use ?force=1 to run here",
-    });
+    const last = await lastSuccessfulRun();
+    const ageMs = last?.finished_at ? Date.now() - new Date(last.finished_at).getTime() : Infinity;
+    if (ageMs < STALE_AFTER_MS) {
+      return NextResponse.json({
+        status: "fresh",
+        lastCrawlMinutesAgo: Math.round(ageMs / 60000),
+        detail: "GitHub Actions is keeping up; no Vercel crawl needed",
+      });
+    }
+    // Fall through: the feed is stale, so take over.
   }
 
   if (req.nextUrl.searchParams.get("wait") === "1") {
