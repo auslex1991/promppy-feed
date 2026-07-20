@@ -38,6 +38,15 @@ export interface RecentItem {
   headline_ko: string;
 }
 
+/** A paid placement in the feed / item pages. One runs at a time. */
+export interface Sponsor {
+  id: number;
+  brand: string;
+  title: string;
+  body: string;
+  url: string;
+}
+
 export interface Briefing {
   dateKst: string; // YYYY-MM-DD in KST
   content: string;
@@ -49,6 +58,8 @@ export interface FeedPayload {
   lastCrawlAt: string | null;
   serverNow: string;
   briefing?: Briefing | null;
+  /** Null when the slot is unsold — the UI then shows the self-promo card. */
+  sponsor?: Sponsor | null;
 }
 
 /** Suppressed duplicate coverage of a published story ("다른 매체 보도"). */

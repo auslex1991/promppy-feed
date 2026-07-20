@@ -8,6 +8,10 @@ import Reactions from "./Reactions";
 import Ticker from "./Ticker";
 import PushToggle from "./PushToggle";
 import ThreadsShareButton from "./ThreadsShareButton";
+import SponsorSlot from "./SponsorSlot";
+
+// Where the single paid placement sits in the feed.
+const SPONSOR_SLOT_INDEX = 5;
 
 // The crawl only publishes every 15 min, so polling every 45s bought nothing
 // and multiplied DB egress across every open tab (it helped exhaust the Neon
@@ -371,6 +375,9 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
           }
           return (
             <Fragment key={item.id}>
+              {/* Paid slot: below the fold-ish so the top of the feed stays
+                  editorial, but high enough to be worth selling. */}
+              {idx === SPONSOR_SLOT_INDEX && <SponsorSlot sponsor={data?.sponsor} />}
               {idx === readMarkerIdx && idx > 0 && (
                 <li
                   aria-hidden
@@ -511,6 +518,10 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
           <span className="mx-2">·</span>
           <a href="/rss.xml" className="hover:text-[#8b949e] hover:underline">
             RSS
+          </a>
+          <span className="mx-2">·</span>
+          <a href="/advertise" className="hover:text-[#8b949e] hover:underline">
+            광고 문의
           </a>
         </p>
       </footer>

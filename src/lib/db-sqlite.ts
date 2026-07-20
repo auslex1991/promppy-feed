@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import type BetterSqlite3 from "better-sqlite3";
-import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Tier } from "./types";
+import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Sponsor, Tier } from "./types";
 import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, EXCERPT_STORE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 // Local-dev backend. Loaded lazily so production builds (Postgres path) never
@@ -74,6 +74,15 @@ async function getDb(): Promise<BetterSqlite3.Database> {
       handle TEXT PRIMARY KEY,
       kind TEXT NOT NULL,
       added_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+    CREATE TABLE IF NOT EXISTS sponsors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      brand TEXT NOT NULL,
+      title TEXT NOT NULL,
+      body TEXT NOT NULL DEFAULT '',
+      url TEXT NOT NULL,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     );
   `);
   for (const ddl of [
@@ -234,6 +243,28 @@ export async function getLatestPublished(excludeId: number, limit = 5): Promise<
 export async function addFeedback(itemId: number): Promise<void> {
   const d = await getDb();
   d.prepare(`INSERT INTO feedback (item_id) VALUES (?)`).run(itemId);
+}
+
+/** The one live sponsor placement, or null when the slot is unsold. */
+export async function getActiveSponsor(): Promise<Sponsor | null> {
+  const d = await getDb();
+  const r = d
+    .prepare(`SELECT id, brand, title, body, url FROM sponsors WHERE active = 1 ORDER BY id DESC LIMIT 1`)
+    .get() as Sponsor | undefined;
+  return r ?? null;
+}
+
+/** Replaces the live placement (only one runs at a time). */
+export async function setSponsor(s: Omit<Sponsor, "id">): Promise<void> {
+  const d = await getDb();
+  d.prepare(`UPDATE sponsors SET active = 0 WHERE active = 1`).run();
+  d.prepare(`INSERT INTO sponsors (brand, title, body, url) VALUES (@brand, @title, @body, @url)`).run(s);
+}
+
+/** Clears the slot — it falls back to the self-promo "advertise here" card. */
+export async function clearSponsor(): Promise<void> {
+  const d = await getDb();
+  d.prepare(`UPDATE sponsors SET active = 0 WHERE active = 1`).run();
 }
 
 export interface XAccountRow {

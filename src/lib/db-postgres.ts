@@ -1,5 +1,5 @@
 import { Pool } from "pg";
-import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Tier } from "./types";
+import type { Briefing, Classification, DupCoverage, FeedItem, RawItem, RecentItem, Sponsor, Tier } from "./types";
 import { canonicalUrl, clampFuture, normalizeTitle, sha256, arrangeFeed, EXCERPT_STORE_CAP, type RunStats, type UnclassifiedRow } from "./db-shared";
 
 let pool: Pool | null = null;
@@ -108,6 +108,15 @@ async function runSchemaDdl(): Promise<void> {
         handle TEXT PRIMARY KEY,
         kind TEXT NOT NULL,
         added_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+      CREATE TABLE IF NOT EXISTS sponsors (
+        id SERIAL PRIMARY KEY,
+        brand TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL DEFAULT '',
+        url TEXT NOT NULL,
+        active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
       );
     `
     );
@@ -249,6 +258,35 @@ export async function getReactionsFor(itemIds: number[]): Promise<Map<number, Re
     map.set(r.item_id, rec);
   }
   return map;
+}
+
+/** The one live sponsor placement, or null when the slot is unsold. */
+export async function getActiveSponsor(): Promise<Sponsor | null> {
+  await ensureSchema();
+  const res = await getPool().query(
+    `SELECT id, brand, title, body, url FROM sponsors WHERE active ORDER BY id DESC LIMIT 1`
+  );
+  const r = res.rows[0];
+  return r ? { id: r.id, brand: r.brand, title: r.title, body: r.body, url: r.url } : null;
+}
+
+/** Replaces the live placement (only one runs at a time). */
+export async function setSponsor(s: Omit<Sponsor, "id">): Promise<void> {
+  await ensureSchema();
+  const p = getPool();
+  await p.query(`UPDATE sponsors SET active = false WHERE active`);
+  await p.query(`INSERT INTO sponsors (brand, title, body, url) VALUES ($1, $2, $3, $4)`, [
+    s.brand,
+    s.title,
+    s.body,
+    s.url,
+  ]);
+}
+
+/** Clears the slot — it falls back to the self-promo "advertise here" card. */
+export async function clearSponsor(): Promise<void> {
+  await ensureSchema();
+  await getPool().query(`UPDATE sponsors SET active = false WHERE active`);
 }
 
 export interface XAccountRow {

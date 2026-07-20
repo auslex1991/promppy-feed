@@ -3,6 +3,8 @@ import { isAdmin, isAdminConfigured } from "@/lib/adminAuth";
 import { loadXRoster } from "@/lib/adapters/x";
 import AdminLogin from "@/components/AdminLogin";
 import AdminPanel from "@/components/AdminPanel";
+import AdminSponsor from "@/components/AdminSponsor";
+import { getActiveSponsor } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "promppy 관리자", robots: { index: false, follow: false } };
@@ -21,6 +23,13 @@ export default async function AdminPage() {
   }
   if (!(await isAdmin())) return <AdminLogin />;
 
-  const { org, people } = await loadXRoster();
-  return <AdminPanel initialOrg={org} initialPeople={people} />;
+  const [{ org, people }, sponsor] = await Promise.all([loadXRoster(), getActiveSponsor()]);
+  return (
+    <>
+      <AdminPanel initialOrg={org} initialPeople={people} />
+      <div className="mx-auto max-w-2xl px-4 pb-12">
+        <AdminSponsor initial={sponsor} />
+      </div>
+    </>
+  );
 }
