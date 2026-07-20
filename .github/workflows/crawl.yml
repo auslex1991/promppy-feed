@@ -6,11 +6,15 @@ name: crawl
 # credit. This job writes to the same Neon DB; the site serves the results
 # through its normal ISR/API caching, so nothing user-facing changes.
 #
-# GitHub's scheduler drifts (runs can be late or skipped), so */10 is used to
-# average out to roughly the intended ~15-minute freshness.
+# TRIGGERING: workflow_dispatch is the primary path — /api/cron on Vercel (pinged
+# by cron-job.org every ~15 min) dispatches this workflow when the feed is stale.
+# Dispatch runs start promptly; `schedule` runs do NOT. GitHub throttles
+# scheduled workflows hard on public repos: against a */10 cron we measured real
+# gaps of 57-157 min, so a schedule alone cannot hold a 15-minute cadence.
+# The hourly schedule below is only a backstop for if cron-job.org itself dies.
 on:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
 
 concurrency:
