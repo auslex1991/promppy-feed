@@ -17,7 +17,7 @@ type State = "unsupported" | "idle" | "on" | "working";
  * 속보 push opt-in. Anonymous: the browser's push subscription is the only
  * identity, stored server-side and fanned out when a 속보 item publishes.
  */
-export default function PushToggle() {
+export default function PushToggle({ compact = false }: { compact?: boolean }) {
   const [state, setState] = useState<State>("idle");
 
   useEffect(() => {
@@ -86,6 +86,29 @@ export default function PushToggle() {
   if (state === "unsupported") return null;
 
   const on = state === "on";
+
+  // Compact: an icon-only bell for the sticky header, where the full button is
+  // too wide. This is the high-visibility placement — the footer button was
+  // invisible to the ~85% who land on an item page and bounce.
+  if (compact) {
+    return (
+      <button
+        onClick={on ? disable : enable}
+        disabled={state === "working"}
+        aria-pressed={on}
+        aria-label={on ? "속보 알림 켜짐" : "속보 알림 받기"}
+        title={on ? "속보 알림 켜짐 (해제하려면 클릭)" : "속보가 뜨면 알림을 받아보세요"}
+        className={`rounded-full border px-2 py-1 font-mono-ts text-xs transition-colors disabled:opacity-50 ${
+          on
+            ? "border-[#ff4d4f]/50 bg-[#ff4d4f]/10 text-[#ff4d4f]"
+            : "border-[#30363d] text-[#8b949e] hover:border-[#8b949e] hover:text-[#c9d1d9]"
+        }`}
+      >
+        {state === "working" ? "…" : on ? "🔔" : "🔕"}
+      </button>
+    );
+  }
+
   return (
     <button
       onClick={on ? disable : enable}

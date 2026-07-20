@@ -1,5 +1,7 @@
 import Feed from "@/components/Feed";
 import { getFeedPayload } from "@/lib/feedPayload";
+import { getTopicCounts } from "@/lib/db";
+import { topicLabel } from "@/lib/topics";
 
 // ISR: the feed is server-rendered into the HTML (SEO + fast first paint); the
 // client hydrates and live-polls /api/feed (60s CDN cache) on top, so the SSR
@@ -13,15 +15,20 @@ export default async function Home() {
   // (Neon egress quota exhausted → every query threw → build died). Degrade to
   // an empty payload instead; the client picks the feed up from /api/feed.
   let initialData;
+  let topics: Array<{ slug: string; label: string }> = [];
   try {
-    initialData = await getFeedPayload(100);
+    const [payload, counts] = await Promise.all([getFeedPayload(100), getTopicCounts(5)]);
+    initialData = payload;
+    // Top topics by volume become the homepage browse row — exposes the
+    // accumulated topic archive that was only reachable via item-page chips.
+    topics = counts.slice(0, 12).map((c) => ({ slug: c.topic, label: topicLabel(c.topic) }));
   } catch (e) {
     console.error("home: feed payload failed, rendering empty:", e instanceof Error ? e.message : e);
     initialData = { items: [], lastCrawlAt: null, serverNow: new Date().toISOString(), briefing: null };
   }
   return (
     <main>
-      <Feed initialData={initialData} />
+      <Feed initialData={initialData} topics={topics} />
     </main>
   );
 }

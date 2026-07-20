@@ -93,9 +93,12 @@ export default async function ItemPage({ params }: Props) {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:py-16">
-      <Link href="/" className="font-mono-ts text-sm text-[#8b949e] hover:text-white">
-        ← promppy<span className="text-[#ffb020]">_</span> 실시간 AI 뉴스
-      </Link>
+      <div className="flex items-center justify-between gap-3">
+        <Link href="/" className="font-mono-ts text-sm text-[#8b949e] hover:text-white">
+          ← promppy<span className="text-[#ffb020]">_</span> 실시간 AI 뉴스
+        </Link>
+        <PushToggle compact />
+      </div>
 
       {/* Live 속보/중요 strip: most visitors land here from a shared link and
           never see the homepage, so this is their only signal the feed is live. */}

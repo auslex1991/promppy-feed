@@ -91,7 +91,13 @@ function matchesFilter(item: FeedItem, filter: Filter): boolean {
   return item.tier === filter;
 }
 
-export default function Feed({ initialData }: { initialData?: FeedPayload }) {
+export default function Feed({
+  initialData,
+  topics = [],
+}: {
+  initialData?: FeedPayload;
+  topics?: Array<{ slug: string; label: string }>;
+}) {
   const [data, setData] = useState<FeedPayload | null>(initialData ?? null);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<number | null>(null);
@@ -279,6 +285,7 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
               )}
             </>
           )}
+          <PushToggle compact />
         </div>
       </header>
 
@@ -306,6 +313,23 @@ export default function Feed({ initialData }: { initialData?: FeedPayload }) {
           );
         })}
       </nav>
+
+      {topics.length > 0 && (
+        <nav
+          aria-label="토픽"
+          className="flex gap-1.5 overflow-x-auto border-b border-[#161b22] py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {topics.map((t) => (
+            <a
+              key={t.slug}
+              href={`/topic/${t.slug}`}
+              className="shrink-0 rounded-full border border-[#30363d] px-2.5 py-0.5 font-mono-ts text-[11px] text-[#8b949e] transition-colors hover:border-[#8b949e] hover:text-[#c9d1d9]"
+            >
+              #{t.label}
+            </a>
+          ))}
+        </nav>
+      )}
 
       <Ticker items={items} now={now} />
 
