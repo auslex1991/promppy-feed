@@ -20,12 +20,12 @@ export default function SponsorSlot({ sponsor }: { sponsor?: Sponsor | null }) {
             AD
           </span>
           <span className="min-w-0 flex-1 basis-full text-[15px] font-medium leading-snug text-[#8b949e] group-hover:text-[#c9d1d9] sm:basis-auto">
-            이 자리에서 한국 AI 실무자에게 도달하세요
+            이 자리에 광고를 노출해 보세요
           </span>
           <span className="ml-auto shrink-0 font-mono-ts text-[11px] text-[#8b949e]/60">광고 문의 →</span>
         </div>
         <p className="mt-1 pl-0 text-[13px] leading-relaxed text-[#8b949e]/70 sm:pl-[76px]">
-          promppy는 매일 AI 뉴스를 찾아보는 개발자·실무자가 읽는 실시간 피드입니다.
+          AI 도구를 매일 쓰는 개발자·실무자가 찾는 실시간 AI 뉴스 피드입니다.
         </p>
       </Link>
     );
