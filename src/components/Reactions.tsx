@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { REACTION_KINDS, REACTION_LABEL, type ReactionKind } from "@/lib/reactions";
 
 const STORE_KEY = "promppy:reactions";
@@ -33,28 +33,24 @@ export default function Reactions({
 }: {
   itemId: number;
   initial?: Record<string, number>;
-  /** Fetch live counts on mount. Needed where the page is long-ISR-cached
-   *  (item pages), so server-rendered counts aren't stale/frozen at 0. */
+  /** @deprecated no longer fetches — see the note below. Kept so callers that
+   *  still pass it don't break. */
   refetch?: boolean;
 }) {
   const [counts, setCounts] = useState<Record<string, number>>(initial ?? {});
   const [mine, setMine] = useState<ReactionKind[]>([]);
-  const touched = useRef(false);
 
   useEffect(() => {
     setMine(readStore()[String(itemId)] ?? []);
-    if (!refetch) return;
-    fetch(`/api/react?itemId=${itemId}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((d) => {
-        // Don't clobber an optimistic tap that landed before this resolved.
-        if (d?.reactions && !touched.current) setCounts(d.reactions);
-      })
-      .catch(() => {});
-  }, [itemId, refetch]);
+    // NO per-view fetch. Item pages used to refetch live counts on mount to
+    // beat the 6h ISR cache — but that was a Vercel function invocation on
+    // EVERY item-page view (~85% of traffic), and with reactions this sparse
+    // (~all items have 0) it dominated Observability/Function costs to fix a
+    // cosmetic staleness. The ISR-baked `initial` counts are good enough; a
+    // reactor still sees their own tap immediately (optimistic update below).
+  }, [itemId]);
 
   const toggle = (kind: ReactionKind) => {
-    touched.current = true;
     const has = mine.includes(kind);
     const delta = has ? -1 : 1;
     const next = has ? mine.filter((k) => k !== kind) : [...mine, kind];
