@@ -349,17 +349,23 @@ export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko
     .all(limit) as Array<{ headline_ko: string; why_ko: string; tier: Tier }>;
 }
 
-/** Published items tagged with a topic slug, newest first. */
-export async function getItemsByTopic(topic: string, limit = 50): Promise<FeedItem[]> {
+/** Published items for a topic (classifier tag OR — for emergent slugs — headline keyword). */
+export async function getItemsByTopic(topic: string, keywords: string[] = [], limit = 50): Promise<FeedItem[]> {
   const d = await getDb();
+  const kwClause = keywords.map(() => "i.headline_ko LIKE ? OR i.title_orig LIKE ?").join(" OR ");
+  const tagMatch = `EXISTS (SELECT 1 FROM json_each(i.topics) AS t WHERE t.value = ?)`;
+  const where = keywords.length ? `(${tagMatch} OR ${kwClause})` : tagMatch;
+  const params: unknown[] = [topic];
+  for (const k of keywords) params.push(`%${k}%`, `%${k}%`);
+  params.push(limit);
   const rows = d
     .prepare(
       `SELECT i.id, i.source_id, i.url, i.title_orig, i.headline_ko, i.why_ko, i.tier, i.published_at, i.is_tip
-       FROM items i, json_each(i.topics) AS t
-       WHERE i.status = 'published' AND t.value = ?
+       FROM items i
+       WHERE i.status = 'published' AND ${where}
        ORDER BY i.published_at DESC LIMIT ?`
     )
-    .all(topic, limit) as Array<{
+    .all(...params) as Array<{
     id: number; source_id: string; url: string; title_orig: string; headline_ko: string;
     why_ko: string; tier: Tier; published_at: string; is_tip: number;
   }>;

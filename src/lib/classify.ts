@@ -88,7 +88,8 @@ You are given a list of stories ALREADY in the feed, each with a numeric id. If 
 Tag each PUBLISHED item with 1–3 topic slugs from this list — nothing else, no invented slugs. Pick only what the item is genuinely ABOUT (a passing mention is not a topic). Empty array when nothing fits or the action is not "publish".
 openai, anthropic, google, meta, xai, mistral, deepseek, qwen, nvidia, microsoft, apple, perplexity, korea-ai,
 chatgpt, claude, gemini, grok, llama, gpt, codex, cursor, copilot, claude-code, huggingface,
-agent, rag, fine-tuning, open-source, benchmark, funding, regulation, security, hardware, pricing, prompt, mcp, research, multimodal, image-gen, video-gen, robotics, career
+agent, rag, fine-tuning, open-source, benchmark, funding, regulation, security, hardware, pricing, prompt, mcp, research, multimodal, image-gen, video-gen, robotics, career,
+kimi-k3, opus-5, bonsai-27b
 
 ## is_tip flag
 Set is_tip=true when the published item's core value is a practical, reusable technique the reader can apply — a workflow, prompt pattern, tool setup, optimization, debugging method, or how-to with concrete specifics. News about products, companies, research announcements, funding, or industry events is is_tip=false even when useful. When action is not "publish", is_tip=false.

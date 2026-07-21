@@ -44,10 +44,33 @@ export const TOPIC_LABELS: Record<string, string> = {
   "video-gen": "비디오 생성",
   robotics: "로보틱스",
   career: "커리어",
+  // Emergent model slugs — added as GSC shows real search demand for a newly
+  // launched model. These lean on TOPIC_KEYWORDS below so the hub page fills
+  // from existing coverage the moment the slug is added, without waiting for
+  // the classifier to re-tag anything.
+  "kimi-k3": "Kimi K3",
+  "opus-5": "Claude Opus 5",
+  "bonsai-27b": "Bonsai 27B",
+};
+
+// Optional headline keywords per slug. When present, a topic page matches items
+// whose HEADLINE contains any keyword, in addition to the classifier tag — so
+// a model that didn't exist when the tag vocabulary was written still gets a
+// fully-populated page. Established topics have no keywords (pure tag match).
+// Keep keywords specific enough to avoid false positives; matching is
+// case-insensitive substring against headline_ko + title_orig.
+export const TOPIC_KEYWORDS: Record<string, string[]> = {
+  "kimi-k3": ["kimi k3", "kimi-k3", "kimik3", "kimi3", "kimi 3"],
+  "opus-5": ["opus 5", "opus-5", "opus5", "opus 5.1"],
+  "bonsai-27b": ["bonsai 27b", "bonsai-27b", "bonsai27b"],
 };
 
 export const TOPIC_SLUGS = new Set(Object.keys(TOPIC_LABELS));
 
 export function topicLabel(slug: string): string {
   return TOPIC_LABELS[slug] ?? slug;
+}
+
+export function topicKeywords(slug: string): string[] {
+  return TOPIC_KEYWORDS[slug] ?? [];
 }

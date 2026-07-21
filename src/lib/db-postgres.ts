@@ -379,14 +379,24 @@ export async function getTopForBriefing(limit = 12): Promise<Array<{ headline_ko
   return res.rows;
 }
 
-/** Published items tagged with a topic slug, newest first. */
-export async function getItemsByTopic(topic: string, limit = 50): Promise<FeedItem[]> {
+/**
+ * Published items for a topic, newest first. Matches the classifier tag, and —
+ * when `keywords` are given (emergent model slugs) — also any item whose
+ * headline/title contains a keyword, so a freshly-added slug fills instantly
+ * from existing coverage.
+ */
+export async function getItemsByTopic(topic: string, keywords: string[] = [], limit = 50): Promise<FeedItem[]> {
   await ensureSchema();
+  const patterns = keywords.map((k) => `%${k}%`);
+  const where = patterns.length
+    ? `status = 'published' AND (topics::jsonb ? $1 OR headline_ko ILIKE ANY($2) OR title_orig ILIKE ANY($2))`
+    : `status = 'published' AND topics::jsonb ? $1`;
+  const params: unknown[] = patterns.length ? [topic, patterns, limit] : [topic, limit];
   const res = await getPool().query(
     `SELECT id, source_id, url, title_orig, headline_ko, why_ko, tier, published_at, is_tip
-     FROM items WHERE status = 'published' AND topics::jsonb ? $1
-     ORDER BY published_at DESC LIMIT $2`,
-    [topic, limit]
+     FROM items WHERE ${where}
+     ORDER BY published_at DESC LIMIT $${patterns.length ? 3 : 2}`,
+    params
   );
   return res.rows.map((r) => ({
     id: r.id,

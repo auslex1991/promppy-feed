@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getItemsByTopic } from "@/lib/db";
 import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR } from "@/lib/site";
-import { TOPIC_SLUGS, topicLabel, TOPIC_LABELS } from "@/lib/topics";
+import { TOPIC_SLUGS, topicLabel, topicKeywords, TOPIC_LABELS } from "@/lib/topics";
 
 // 1h: topic pages are SEO hub pages; freshness within the hour is plenty.
 // ~40 possible slugs so ISR-write volume is bounded and tiny.
@@ -47,7 +47,7 @@ export default async function TopicPage({ params }: Props) {
   const { slug } = await params;
   if (!TOPIC_SLUGS.has(slug)) notFound();
 
-  const items = await getItemsByTopic(slug, 50);
+  const items = await getItemsByTopic(slug, topicKeywords(slug), 50);
   const label = topicLabel(slug);
   // Sibling topics for cross-navigation (static list keeps this DB-free).
   const siblings = Object.keys(TOPIC_LABELS).filter((s) => s !== slug).slice(0, 12);
