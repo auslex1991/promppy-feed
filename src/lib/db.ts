@@ -27,6 +27,7 @@ export const setSponsor = impl.setSponsor;
 export const clearSponsor = impl.clearSponsor;
 export const getItemsByTopic = impl.getItemsByTopic;
 export const getTopicCounts = impl.getTopicCounts;
+export const getItemsPerDay = impl.getItemsPerDay;
 export const getXAccounts = impl.getXAccounts;
 export const seedXAccounts = impl.seedXAccounts;
 export const addXAccount = impl.addXAccount;

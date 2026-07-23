@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { getTopicCounts } from "@/lib/db";
+import { getItemsPerDay } from "@/lib/db";
 
 // Stats change slowly; regenerate a few times a day.
 export const revalidate = 21600;
@@ -13,22 +13,24 @@ export const metadata: Metadata = {
 
 const CONTACT = "admin@promppy.com";
 
-// Audience numbers are reported manually — Vercel Analytics isn't queryable at
-// build time. Keep the "기준" date honest when refreshing these.
+// Audience numbers are reported manually — Vercel Analytics / GSC aren't
+// queryable at build time. Keep the "기준" date honest when refreshing these.
 const STATS = {
-  asOf: "2026년 7월",
+  asOf: "2026년 7월 21일",
   weeklyVisitors: "5,300+",
   weeklyPageviews: "10,000+",
-  itemsPerDay: "180+",
+  weeklyGoogleClicks: "2,600+",
 };
 
 export default async function AdvertisePage() {
-  let topicCount = 0;
+  // Live from the DB — always current, no manual refresh needed.
+  let itemsPerDay = 0;
   try {
-    topicCount = (await getTopicCounts(3)).length;
+    itemsPerDay = await getItemsPerDay();
   } catch {
     // stats page must never fail on a DB hiccup
   }
+  const itemsPerDayLabel = itemsPerDay > 0 ? `${Math.round(itemsPerDay / 10) * 10}+` : "200+";
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
@@ -46,8 +48,8 @@ export default async function AdvertisePage() {
         {[
           { k: "주간 방문자", v: STATS.weeklyVisitors },
           { k: "주간 페이지뷰", v: STATS.weeklyPageviews },
-          { k: "일 발행 기사", v: STATS.itemsPerDay },
-          { k: "토픽 페이지", v: `${topicCount}개` },
+          { k: "구글 검색 유입 / 주", v: STATS.weeklyGoogleClicks },
+          { k: "일 발행 기사", v: itemsPerDayLabel },
         ].map((s) => (
           <div key={s.k} className="rounded-lg border border-[#161b22] bg-white/[0.02] p-4">
             <div className="font-mono-ts text-lg font-bold text-[#e6edf3]">{s.v}</div>
@@ -56,7 +58,7 @@ export default async function AdvertisePage() {
         ))}
       </section>
       <p className="mt-2 font-mono-ts text-[11px] text-[#8b949e]/60">
-        기준: {STATS.asOf} · 데이터 출처: Vercel Analytics
+        기준: {STATS.asOf} · 출처: Vercel Analytics, Google Search Console · 발행 기사는 실시간 집계
       </p>
 
       <section className="mt-10">

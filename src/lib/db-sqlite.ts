@@ -383,6 +383,18 @@ export async function getItemsByTopic(topic: string, keywords: string[] = [], li
   }));
 }
 
+/** Average published items per day over the last week (for the rate card). */
+export async function getItemsPerDay(): Promise<number> {
+  const d = await getDb();
+  const r = d
+    .prepare(
+      `SELECT count(*) / 7.0 AS n FROM items
+       WHERE status = 'published' AND published_at > datetime('now', '-7 days')`
+    )
+    .get() as { n: number };
+  return Math.round(r?.n ?? 0);
+}
+
 /** Topics that actually have published content (for the sitemap / index). */
 export async function getTopicCounts(min = 3): Promise<Array<{ topic: string; n: number }>> {
   const d = await getDb();
