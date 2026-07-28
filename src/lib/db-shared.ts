@@ -54,6 +54,24 @@ export const SOURCE_CAPS: { default: number; perSource: Record<string, number> }
 // otherwise crowd out every other curated voice.
 export const X_AUTHOR_CAP = 2;
 
+// Postgres `integer` upper bound. An id above this makes the query throw a
+// range error, which surfaced as a 500 — Google Search Console flagged real
+// 서버 오류(5xx) from crawlers probing URLs like /item/1e10 and
+// /item/9999999999999999999999.
+const MAX_ITEM_ID = 2147483647;
+
+/**
+ * Parse a URL id param into a safe item id, or null if it cannot be one.
+ * The digits-only test is the important part: Number("1e10") is 10000000000
+ * and Number.isInteger() says true, so a laxer check let overflowing ids reach
+ * the database. Callers turn null into a 404.
+ */
+export function parseItemId(raw: string): number | null {
+  if (!/^\d+$/.test(raw)) return null;
+  const n = Number(raw);
+  return Number.isSafeInteger(n) && n > 0 && n <= MAX_ITEM_ID ? n : null;
+}
+
 // Stored excerpt cap. Raised from 1500 so longform X posts / enriched threads
 // survive intact for the Korean summary (which reads the full stored excerpt);
 // classification still slices to 1500, so per-item classify cost is unchanged.

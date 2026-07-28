@@ -1,5 +1,5 @@
 import { ImageResponse } from "next/og";
-import { getItem } from "@/lib/db";
+import { getItem, parseItemId } from "@/lib/db";
 import { SOURCE_NAMES } from "@/lib/sources";
 import { TIER_COLOR } from "@/lib/site";
 
@@ -30,7 +30,10 @@ async function loadKoreanFont(text: string, weight: 400 | 700): Promise<ArrayBuf
 
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const item = await getItem(Number(id));
+  // Same guard as the page: an unparseable/overflowing id must not reach the
+  // query (it threw a Postgres range error → 500 for crawlers).
+  const parsed = parseItemId(id);
+  const item = parsed === null ? null : await getItem(parsed);
 
   const tier = item?.tier ?? "참고";
   const color = TIER_COLOR[tier];

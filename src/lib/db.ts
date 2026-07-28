@@ -39,4 +39,4 @@ export const startRun = impl.startRun;
 export const finishRun = impl.finishRun;
 export const lastSuccessfulRun = impl.lastSuccessfulRun;
 
-export { canonicalUrl } from "./db-shared";
+export { canonicalUrl, parseItemId } from "./db-shared";

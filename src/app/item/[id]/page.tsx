@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDupCoverage, getItem, getLatestPublished, getReactionsFor } from "@/lib/db";
+import { getDupCoverage, getItem, getLatestPublished, getReactionsFor, parseItemId } from "@/lib/db";
 import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR, kstDate } from "@/lib/site";
 import CopyLinkButton from "@/components/CopyLinkButton";
@@ -42,9 +42,11 @@ interface Props {
 }
 
 async function loadItem(idParam: string) {
-  const id = Number(idParam);
-  if (!Number.isInteger(id) || id <= 0) return null;
-  return getItem(id);
+  // parseItemId rejects ids Postgres can't hold (crawlers probe /item/1e10 and
+  // similar, which used to reach the query and 500). A genuine DB error still
+  // throws — turning an outage into a 404 would invite Google to deindex.
+  const id = parseItemId(idParam);
+  return id === null ? null : getItem(id);
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
