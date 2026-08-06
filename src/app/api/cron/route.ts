@@ -12,9 +12,12 @@ export const maxDuration = 300;
 const DISPATCH_AFTER_MS = 8 * 60_000;
 
 // Only if GitHub has clearly stopped delivering do we pay to crawl on Vercel.
-// Well above the dispatch threshold so a merely-slow Actions run doesn't
-// trigger a duplicate (and billed) crawl here.
-const VERCEL_FALLBACK_AFTER_MS = 40 * 60_000;
+// Above the dispatch threshold so a merely-slow Actions run doesn't trigger a
+// duplicate (billed) crawl. 25 min because GitHub's hosted-runner availability
+// is unreliable in practice: when it can't acquire a runner the job sits
+// queued until timeout, and at the old 40-min threshold the feed drifted to
+// 40-75 min stale before we stepped in.
+const VERCEL_FALLBACK_AFTER_MS = 25 * 60_000;
 
 const GH_REPO = "auslex1991/promppy-feed";
 const GH_WORKFLOW = "crawl.yml";
