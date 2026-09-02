@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Noto_Sans_KR } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
-import Script from "next/script";
 import "./globals.css";
 
 // Set once AdSense approves the site. Until then every AdSlot renders null and
@@ -55,14 +54,15 @@ export default function RootLayout({
         {children}
         <Analytics />
         {ADSENSE_CLIENT && (
-          // beforeInteractive because AdSense verification and review look for
-          // this tag in the SERVER-rendered HTML; lazyOnload injects it only on
-          // the client, which can fail review. It stays async and, per the Next
-          // docs, does not block hydration. Worth revisiting once approved.
-          <Script
+          // A PLAIN <script>, deliberately not next/script. Both
+          // beforeInteractive and afterInteractive emit only a
+          // <link rel="preload"> into the server HTML and load the file via
+          // Next's runtime, so AdSense's verifier — which looks for the literal
+          // script tag — reported "사이트를 확인할 수 없습니다". React hoists an
+          // async script with a src into <head>, giving Google the real tag.
+          <script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-            strategy="beforeInteractive"
             crossOrigin="anonymous"
           />
         )}
