@@ -16,10 +16,11 @@ const CONTACT = "admin@promppy.com";
 // Audience numbers are reported manually — Vercel Analytics / GSC aren't
 // queryable at build time. Keep the "기준" date honest when refreshing these.
 const STATS = {
-  asOf: "2026년 7월 21일",
-  weeklyVisitors: "5,300+",
-  weeklyPageviews: "10,000+",
-  weeklyGoogleClicks: "2,600+",
+  asOf: "2026년 9월 2일",
+  monthlyPageviews: "145,000+",
+  weeklyVisitors: "16,000+",
+  weeklyPageviews: "33,000+",
+  googleShare: "82%",
 };
 
 export default async function AdvertisePage() {
@@ -46,9 +47,9 @@ export default async function AdvertisePage() {
 
       <section className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
+          { k: "월간 페이지뷰", v: STATS.monthlyPageviews },
           { k: "주간 방문자", v: STATS.weeklyVisitors },
-          { k: "주간 페이지뷰", v: STATS.weeklyPageviews },
-          { k: "구글 검색 유입 / 주", v: STATS.weeklyGoogleClicks },
+          { k: "구글 검색 유입", v: STATS.googleShare },
           { k: "일 발행 기사", v: itemsPerDayLabel },
         ].map((s) => (
           <div key={s.k} className="rounded-lg border border-[#161b22] bg-white/[0.02] p-4">
@@ -66,7 +67,7 @@ export default async function AdvertisePage() {
         <ul className="mt-3 space-y-2 text-[14px] leading-relaxed text-[#c9d1d9]">
           <li>· AI 도구를 실무에 쓰는 개발자·기획자·창업자</li>
           <li>· 모델 출시, 가격 변경, 에이전트 도구 소식을 매일 확인하는 사용자</li>
-          <li>· 유입 경로: Threads, Google 검색, 커뮤니티 공유</li>
+          <li>· 한국 독자 89% · 모바일 56% · 구글 검색 유입 82%</li>
         </ul>
       </section>
 
@@ -76,7 +77,7 @@ export default async function AdvertisePage() {
         <div className="mt-4 rounded-lg border border-[#ffb020]/25 bg-[#ffb020]/[0.04] p-5">
           <div className="flex items-baseline justify-between gap-3">
             <h3 className="font-semibold text-[#e6edf3]">피드 스폰서 슬롯</h3>
-            <span className="shrink-0 font-mono-ts text-sm text-[#ffb020]">월 30만원</span>
+            <span className="shrink-0 font-mono-ts text-sm text-[#ffb020]">월 50만원</span>
           </div>
           <p className="mt-2 text-[14px] leading-relaxed text-[#c9d1d9]">
             메인 피드 상단 영역에 고정 노출되는 네이티브 슬롯입니다. 기사와 같은 형식이지만

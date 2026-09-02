@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { JetBrains_Mono, Noto_Sans_KR } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import Script from "next/script";
 import "./globals.css";
+
+// Set once AdSense approves the site. Until then every AdSlot renders null and
+// this script is never loaded, so readers see no trace of ads.
+const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],
@@ -49,6 +54,17 @@ export default function RootLayout({
       <body className="min-h-full bg-[#0a0e14] text-[#c9d1d9]">
         {children}
         <Analytics />
+        {ADSENSE_CLIENT && (
+          // lazyOnload keeps the ad script out of the critical path: it loads
+          // at browser idle, so it cannot delay LCP on the item pages that
+          // take ~85% of traffic and earn the Google rankings feeding them.
+          <Script
+            async
+            src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
+            strategy="lazyOnload"
+            crossOrigin="anonymous"
+          />
+        )}
       </body>
     </html>
   );

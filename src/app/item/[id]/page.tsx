@@ -6,6 +6,7 @@ import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR, kstDate } from "@/lib/site";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import Reactions from "@/components/Reactions";
+import AdSlot from "@/components/AdSlot";
 import ThreadsShareButton from "@/components/ThreadsShareButton";
 import PushToggle from "@/components/PushToggle";
 import Ticker from "@/components/Ticker";
@@ -179,6 +180,11 @@ export default async function ItemPage({ params }: Props) {
           <ThreadsShareButton headlineKo={item.headlineKo} whyKo={item.whyKo} url={`${SITE_URL}/item/${item.id}`} />
         </div>
       </article>
+
+      {/* Placed at the "finished reading" beat — after the article and its
+          share row, before the next-news card. Highest viewability without
+          interrupting the read, which matters with bounce already at 74%. */}
+      <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_ARTICLE} className="mt-8" />
 
       {nextItem && (
         <Link
