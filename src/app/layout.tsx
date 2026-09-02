@@ -55,13 +55,14 @@ export default function RootLayout({
         {children}
         <Analytics />
         {ADSENSE_CLIENT && (
-          // lazyOnload keeps the ad script out of the critical path: it loads
-          // at browser idle, so it cannot delay LCP on the item pages that
-          // take ~85% of traffic and earn the Google rankings feeding them.
+          // beforeInteractive because AdSense verification and review look for
+          // this tag in the SERVER-rendered HTML; lazyOnload injects it only on
+          // the client, which can fail review. It stays async and, per the Next
+          // docs, does not block hydration. Worth revisiting once approved.
           <Script
             async
             src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${ADSENSE_CLIENT}`}
-            strategy="lazyOnload"
+            strategy="beforeInteractive"
             crossOrigin="anonymous"
           />
         )}
