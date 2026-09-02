@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-const CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
+const CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT?.trim();
 
 declare global {
   interface Window {
@@ -43,7 +43,8 @@ export default function AdSlot({
     }
   }, [slot]);
 
-  if (!CLIENT || !slot) return null;
+  const slotId = slot?.trim();
+  if (!CLIENT || !slotId) return null;
 
   return (
     <div className={className}>
@@ -54,7 +55,7 @@ export default function AdSlot({
         className="adsbygoogle block"
         style={{ display: "block", minHeight }}
         data-ad-client={CLIENT}
-        data-ad-slot={slot}
+        data-ad-slot={slotId}
         data-ad-format="auto"
         data-full-width-responsive="true"
       />

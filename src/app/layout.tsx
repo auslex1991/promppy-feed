@@ -6,7 +6,7 @@ import "./globals.css";
 
 // Set once AdSense approves the site. Until then every AdSlot renders null and
 // this script is never loaded, so readers see no trace of ads.
-const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
+const ADSENSE_CLIENT = process.env.NEXT_PUBLIC_ADSENSE_CLIENT?.trim();
 
 const mono = JetBrains_Mono({
   subsets: ["latin"],

@@ -9,7 +9,7 @@
 export const dynamic = "force-static";
 
 export function GET() {
-  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT;
+  const client = process.env.NEXT_PUBLIC_ADSENSE_CLIENT?.trim();
   // Nothing to declare until AdSense is approved; a 404 is correct then.
   if (!client) return new Response("Not found", { status: 404 });
 
