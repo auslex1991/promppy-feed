@@ -26,6 +26,7 @@ export default async function Home() {
     // tag-count query yet, but they are real pages with search demand and
     // need an internal link for crawlers — the sitemap already includes them.
     for (const slug of Object.keys(TOPIC_KEYWORDS)) {
+      if (topics.length >= 16) break; // row stays scannable; sitemap carries the rest
       if (!topics.some((t) => t.slug === slug)) topics.push({ slug, label: topicLabel(slug) });
     }
   } catch (e) {

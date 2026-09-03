@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { getItemsByTopic } from "@/lib/db";
 import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR } from "@/lib/site";
-import { TOPIC_SLUGS, topicLabel, topicKeywords, TOPIC_LABELS } from "@/lib/topics";
+import { TOPIC_SLUGS, topicLabel, topicKeywords, TOPIC_LABELS, topicTitle } from "@/lib/topics";
 
 // 1h: topic pages are SEO hub pages; freshness within the hour is plenty.
 // ~40 possible slugs so ISR-write volume is bounded and tiny.
@@ -21,7 +21,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   if (!TOPIC_SLUGS.has(slug)) return { title: "promppy — 실시간 AI 뉴스" };
-  const label = topicLabel(slug);
+  const label = topicTitle(slug);
   const title = `${label} 최신 뉴스 — promppy`;
   const description = `${label} 관련 AI 업계 소식을 실시간으로. 15분마다 자동 수집, 중요도 분류와 한국어 요약 제공.`;
   return {
@@ -48,7 +48,7 @@ export default async function TopicPage({ params }: Props) {
   if (!TOPIC_SLUGS.has(slug)) notFound();
 
   const items = await getItemsByTopic(slug, topicKeywords(slug), 50);
-  const label = topicLabel(slug);
+  const label = topicTitle(slug);
   // Sibling topics for cross-navigation (static list keeps this DB-free).
   const siblings = Object.keys(TOPIC_LABELS).filter((s) => s !== slug).slice(0, 12);
 

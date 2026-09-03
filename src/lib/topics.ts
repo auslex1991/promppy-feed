@@ -56,6 +56,32 @@ export const TOPIC_LABELS: Record<string, string> = {
   // DGX", Qwen local-run reports) — 참고-tier content that outranks big
   // outlets on niche queries. ~355 matching items/30d existed with no page.
   "local-llm": "로컬 LLM",
+  // From the 2026-09-04 GSC export: 499 queries / 4,888 clicks had no hub.
+  // Each slug below had 49–500 published items already, so the page fills
+  // on day one. Thin candidates (eli5: 5 items, neurips: 10) were skipped —
+  // an empty hub reads as thin content to Google and is worse than none.
+  minimax: "MiniMax",
+  "fable-5": "Claude Fable 5",
+  "gpt-5-6": "GPT-5.6",
+  "glm-5": "GLM 5",
+  muse: "Muse",
+  "ox-alpha": "OX Alpha",
+  comfyui: "ComfyUI",
+};
+
+// Korean names searchers actually type (GSC: 키미 99 clicks, 코덱스 104,
+// 제미나이 47, 오푸스 59). Rendered in the hub title/h1 so the page contains
+// the query string — the English-only title never matched these.
+export const TOPIC_ALIASES: Record<string, string> = {
+  "kimi-k3": "키미 K3",
+  gemini: "제미나이",
+  codex: "코덱스",
+  "opus-5": "오푸스 5",
+  claude: "클로드",
+  grok: "그록",
+  minimax: "미니맥스",
+  "fable-5": "페이블 5",
+  "local-llm": "로컬 LLM 구동",
 };
 
 // Optional headline keywords per slug. When present, a topic page matches items
@@ -65,13 +91,20 @@ export const TOPIC_LABELS: Record<string, string> = {
 // Keep keywords specific enough to avoid false positives; matching is
 // case-insensitive substring against headline_ko + title_orig.
 export const TOPIC_KEYWORDS: Record<string, string[]> = {
-  "kimi-k3": ["kimi k3", "kimi-k3", "kimik3", "kimi3", "kimi 3"],
-  "opus-5": ["opus 5", "opus-5", "opus5", "opus 5.1"],
+  "kimi-k3": ["kimi k3", "kimi-k3", "kimik3", "kimi3", "kimi 3", "키미 k3", "키미3", "키미 3"],
+  "opus-5": ["opus 5", "opus-5", "opus5", "opus 5.1", "오푸스 5", "오푸스5"],
   "bonsai-27b": ["bonsai 27b", "bonsai-27b", "bonsai27b"],
   "local-llm": [
     "로컬", "local llm", "ollama", "llama.cpp", "lm studio", "온디바이스",
     "on-device", "gguf", "양자화", "quantiz", "vllm", "exo ",
   ],
+  minimax: ["minimax", "미니맥스"],
+  "fable-5": ["fable 5", "fable-5", "fable5", "claude fable", "페이블 5"],
+  "gpt-5-6": ["gpt 5.6", "gpt-5.6", "gpt5.6", "luna max", "sol medium", "5.6 luna", "5.6 sol"],
+  "glm-5": ["glm 5", "glm-5", "glm5"],
+  muse: ["muse code", "muse spark", "muse glimmer"],
+  "ox-alpha": ["ox 알파", "ox alpha", "ox-alpha"],
+  comfyui: ["comfyui"],
 };
 
 export const TOPIC_SLUGS = new Set(Object.keys(TOPIC_LABELS));
@@ -82,4 +115,10 @@ export function topicLabel(slug: string): string {
 
 export function topicKeywords(slug: string): string[] {
   return TOPIC_KEYWORDS[slug] ?? [];
+}
+
+/** "Gemini (제미나이)" when an alias exists, else the label. For titles/h1. */
+export function topicTitle(slug: string): string {
+  const alias = TOPIC_ALIASES[slug];
+  return alias ? `${topicLabel(slug)} (${alias})` : topicLabel(slug);
 }
