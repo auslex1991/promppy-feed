@@ -51,6 +51,11 @@ export const TOPIC_LABELS: Record<string, string> = {
   "kimi-k3": "Kimi K3",
   "opus-5": "Claude Opus 5",
   "bonsai-27b": "Bonsai 27B",
+  // Practitioner long-tail hub. Analytics (2026-09) showed 4 of the 6 most
+  // visited item pages were local-model / hardware how-tos ("128GB Mac vs
+  // DGX", Qwen local-run reports) — 참고-tier content that outranks big
+  // outlets on niche queries. ~355 matching items/30d existed with no page.
+  "local-llm": "로컬 LLM",
 };
 
 // Optional headline keywords per slug. When present, a topic page matches items
@@ -63,6 +68,10 @@ export const TOPIC_KEYWORDS: Record<string, string[]> = {
   "kimi-k3": ["kimi k3", "kimi-k3", "kimik3", "kimi3", "kimi 3"],
   "opus-5": ["opus 5", "opus-5", "opus5", "opus 5.1"],
   "bonsai-27b": ["bonsai 27b", "bonsai-27b", "bonsai27b"],
+  "local-llm": [
+    "로컬", "local llm", "ollama", "llama.cpp", "lm studio", "온디바이스",
+    "on-device", "gguf", "양자화", "quantiz", "vllm", "exo ",
+  ],
 };
 
 export const TOPIC_SLUGS = new Set(Object.keys(TOPIC_LABELS));

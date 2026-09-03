@@ -62,7 +62,7 @@ export const SOURCES: SourceDef[] = [
       fetchReddit(
         id,
         [
-          "LocalLLaMA", "MachineLearning", "OpenAI", "ClaudeAI", "artificial",
+          "LocalLLaMA", "LocalLLM", "ollama", "MachineLearning", "OpenAI", "ClaudeAI", "artificial",
           "singularity", "StableDiffusion", "LLMDevs", "ChatGPTCoding", "cursor",
           // added 2026-07-12 at user request
           "claude", "PromptEngineering", "ClaudeCode", "ChatGPT",
