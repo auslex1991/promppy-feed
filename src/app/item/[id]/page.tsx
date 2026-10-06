@@ -208,9 +208,9 @@ export default async function ItemPage({ params }: Props) {
             >
               {nextItem.tier}
             </span>
-            <span className="group-hover:underline">{nextItem.headlineKo}</span>
+            <span className="group-hover:underline">{withKoreanNames(nextItem.headlineKo)}</span>
           </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-[#8b949e]">{nextItem.whyKo}</p>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-[#8b949e]">{withKoreanNames(nextItem.whyKo)}</p>
         </Link>
       )}
 
@@ -274,7 +274,7 @@ export default async function ItemPage({ params }: Props) {
                   >
                     [{r.tier}]
                   </span>
-                  {r.headlineKo}
+                  {withKoreanNames(r.headlineKo)}
                 </Link>
               </li>
             ))}
@@ -295,7 +295,7 @@ export default async function ItemPage({ params }: Props) {
                   >
                     [{l.tier}]
                   </span>
-                  {l.headlineKo}
+                  {withKoreanNames(l.headlineKo)}
                 </Link>
               </li>
             ))}

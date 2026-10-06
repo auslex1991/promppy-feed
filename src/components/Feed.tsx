@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { withKoreanNames } from "@/lib/brandKo";
 import type { FeedItem, FeedPayload, Tier } from "@/lib/types";
 import CopyLinkButton from "./CopyLinkButton";
 import FeedbackButton from "./FeedbackButton";
@@ -450,7 +451,7 @@ export default function Feed({
                     onClick={(e) => e.stopPropagation()}
                     className="min-w-0 flex-1 basis-full text-[15px] font-medium leading-snug text-[#e6edf3] hover:underline sm:basis-auto"
                   >
-                    {item.headlineKo}
+                    {withKoreanNames(item.headlineKo)}
                   </a>
                   <span className="ml-auto min-w-0 shrink truncate font-mono-ts text-[11px] text-[#8b949e]/70">
                     {(() => {
@@ -462,7 +463,7 @@ export default function Feed({
                   </span>
                 </div>
                 <p className="mt-1 pl-0 text-[13px] leading-relaxed text-[#8b949e] sm:pl-[76px]">
-                  {item.whyKo}
+                  {withKoreanNames(item.whyKo)}
                 </p>
                 {isExpanded && (
                   <div className="mt-2 rounded bg-white/[0.03] p-3 text-[13px] sm:ml-[76px]">
@@ -485,8 +486,8 @@ export default function Feed({
                     <div className="mt-3 flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
                       <CopyLinkButton url={`${window.location.origin}/item/${item.id}`} />
                       <ThreadsShareButton
-                        headlineKo={item.headlineKo}
-                        whyKo={item.whyKo}
+                        headlineKo={withKoreanNames(item.headlineKo)}
+                        whyKo={withKoreanNames(item.whyKo)}
                         url={`${window.location.origin}/item/${item.id}`}
                       />
                       <a

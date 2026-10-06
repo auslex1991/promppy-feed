@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { withKoreanNames } from "@/lib/brandKo";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getItemsByTopic } from "@/lib/db";
@@ -94,13 +95,13 @@ export default async function TopicPage({ params }: Props) {
                 href={`/item/${i.id}`}
                 className="min-w-0 flex-1 basis-full text-[15px] font-medium leading-snug text-[#e6edf3] hover:underline sm:basis-auto"
               >
-                {i.headlineKo}
+                {withKoreanNames(i.headlineKo)}
               </Link>
               <span className="ml-auto shrink-0 font-mono-ts text-[11px] text-[#8b949e]/70" suppressHydrationWarning>
                 {SOURCE_NAMES[i.sourceId] ?? i.sourceId} · {kstDate(i.publishedAt)}
               </span>
             </div>
-            <p className="mt-1 text-[13px] leading-relaxed text-[#8b949e]">{i.whyKo}</p>
+            <p className="mt-1 text-[13px] leading-relaxed text-[#8b949e]">{withKoreanNames(i.whyKo)}</p>
           </li>
         ))}
       </ol>

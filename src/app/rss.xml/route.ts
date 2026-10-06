@@ -1,4 +1,5 @@
 import { getFeedBefore } from "@/lib/db";
+import { withKoreanNames } from "@/lib/brandKo";
 import { SITE_URL } from "@/lib/site";
 import { SOURCE_NAMES } from "@/lib/sources";
 
@@ -30,11 +31,11 @@ export async function GET() {
       const source = SOURCE_NAMES[i.sourceId] ?? i.sourceId;
       const tags = `[${i.tier}]${i.isTip ? "[팁]" : ""}`;
       return `    <item>
-      <title>${esc(`${tags} ${i.headlineKo}`)}</title>
+      <title>${esc(`${tags} ${withKoreanNames(i.headlineKo)}`)}</title>
       <link>${SITE_URL}/item/${i.id}</link>
       <guid isPermaLink="true">${SITE_URL}/item/${i.id}</guid>
       <pubDate>${new Date(i.publishedAt).toUTCString()}</pubDate>
-      <description>${esc(`${i.whyKo} (출처: ${source})`)}</description>
+      <description>${esc(`${withKoreanNames(i.whyKo)} (출처: ${source})`)}</description>
     </item>`;
     })
     .join("\n");

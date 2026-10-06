@@ -1,6 +1,7 @@
 "use client";
 
 import type { FeedItem } from "@/lib/types";
+import { withKoreanNames } from "@/lib/brandKo";
 
 const MAX_ENTRIES = 12;
 const WINDOW_MS = 24 * 3_600_000;
@@ -31,7 +32,7 @@ export default function Ticker({ items, now }: { items: FeedItem[]; now: number 
           <span className={item.tier === "속보" ? "text-[#ff4d4f]" : "text-[#ffb020]"}>
             {item.tier === "속보" ? "● 속보" : "●"}
           </span>
-          <span className="ticker-headline">{item.headlineKo}</span>
+          <span className="ticker-headline">{withKoreanNames(item.headlineKo)}</span>
         </a>
       ))}
     </div>
