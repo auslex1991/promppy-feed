@@ -6,6 +6,7 @@ import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR, kstDate } from "@/lib/site";
 import CopyLinkButton from "@/components/CopyLinkButton";
 import Reactions from "@/components/Reactions";
+import { withKoreanNames } from "@/lib/brandKo";
 import AdSlot from "@/components/AdSlot";
 import ThreadsShareButton from "@/components/ThreadsShareButton";
 import PushToggle from "@/components/PushToggle";
@@ -54,14 +55,18 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { id } = await params;
   const item = await loadItem(id);
   if (!item) return { title: "promppy — 실시간 AI 뉴스" };
-  const title = `[${item.tier}] ${item.headlineKo}`;
+  // Korean brand names ride along in the title/description for Korean-keyword
+  // search (클로드, 챗GPT, 제미나이…); the DB keeps the English originals.
+  const headline = withKoreanNames(item.headlineKo);
+  const why = withKoreanNames(item.whyKo);
+  const title = `[${item.tier}] ${headline}`;
   return {
     title: `${title} | promppy`,
-    description: item.whyKo,
+    description: why,
     alternates: { canonical: `${SITE_URL}/item/${item.id}` },
     openGraph: {
       title,
-      description: item.whyKo,
+      description: why,
       url: `${SITE_URL}/item/${item.id}`,
       siteName: "promppy",
       type: "article",
@@ -70,7 +75,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title,
-      description: item.whyKo,
+      description: why,
     },
   };
 }
@@ -129,10 +134,10 @@ export default async function ItemPage({ params }: Props) {
         </div>
 
         <h1 className="mt-4 text-2xl font-bold leading-snug text-[#e6edf3] sm:text-3xl">
-          {item.headlineKo}
+          {withKoreanNames(item.headlineKo)}
         </h1>
 
-        <p className="mt-4 text-[15px] leading-relaxed text-[#c9d1d9]">{item.whyKo}</p>
+        <p className="mt-4 text-[15px] leading-relaxed text-[#c9d1d9]">{withKoreanNames(item.whyKo)}</p>
 
         {item.summaryKo && (
           <div className="mt-6 border-t border-[#161b22] pt-5">
