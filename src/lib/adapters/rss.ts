@@ -23,6 +23,34 @@ export interface RssOptions {
    * actually lacks a timezone.
    */
   naiveTzOffset?: string; // e.g. "+09:00"
+  /**
+   * News-search feeds (Bing News) wrap each link in a click tracker that
+   * carries the real article URL in a query parameter. Name that parameter
+   * to store the publisher's own URL instead of the tracker.
+   */
+  linkParam?: string;
+  /** Keep only items whose (unwrapped) URL is on this host or a subdomain. */
+  requireHost?: string;
+}
+
+function resolveLink(link: string, opts: RssOptions): string | null {
+  let url = link;
+  if (opts.linkParam) {
+    try {
+      url = new URL(link).searchParams.get(opts.linkParam) ?? link;
+    } catch {
+      return null;
+    }
+  }
+  if (opts.requireHost) {
+    try {
+      const host = new URL(url).hostname;
+      if (host !== opts.requireHost && !host.endsWith(`.${opts.requireHost}`)) return null;
+    } catch {
+      return null;
+    }
+  }
+  return url;
 }
 
 function parseDate(it: { isoDate?: string; pubDate?: string }, opts: RssOptions): string | null {
@@ -50,11 +78,13 @@ export async function fetchRss(
   const feed = await (opts.timeoutMs ? makeParser(opts.timeoutMs) : parser).parseURL(feedUrl);
   return (feed.items ?? []).slice(0, opts.maxItems ?? 30).flatMap((it) => {
     if (!it.link || !it.title) return [];
+    const url = resolveLink(it.link, opts);
+    if (!url) return [];
     const excerpt = (it.contentSnippet || it.content || it.summary || "").toString();
     return [
       {
         sourceId,
-        url: it.link,
+        url,
         title: it.title.trim(),
         publishedAt: parseDate(it, opts),
         excerpt,

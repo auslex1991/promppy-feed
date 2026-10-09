@@ -28,6 +28,11 @@ export interface CrawlStats {
   errors: string[];
 }
 
+// Sources whose items never get an article-text fetch: X posts and Reddit
+// self-posts already carry their full text; VentureBeat blocks automated
+// requests (Vercel checkpoint, 429), so fetching would only hit their wall.
+const NO_ARTICLE_FETCH = new Set(["x", "reddit", "venturebeat"]);
+
 /** The SPEC.md §5 pipeline: fetch all → dedup+insert → classify new → done. */
 export async function runCrawl(): Promise<CrawlStats> {
   const runId = await startRun();
@@ -79,7 +84,7 @@ export async function runCrawl(): Promise<CrawlStats> {
           // classification, and the item-page summary judge from real body
           // text. (X posts and Reddit self-posts already carry full text.)
           let excerpt = p.excerpt;
-          if (excerpt.trim().length < 400 && p.source_id !== "x" && p.source_id !== "reddit") {
+          if (excerpt.trim().length < 400 && !NO_ARTICLE_FETCH.has(p.source_id)) {
             const article = await fetchArticleText(p.url);
             if (article.length > excerpt.trim().length) excerpt = article;
           }

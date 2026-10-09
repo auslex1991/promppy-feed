@@ -50,7 +50,21 @@ export const SOURCES: SourceDef[] = [
   { id: "techcrunch", name: "TechCrunch", fetch: (id) => fetchRss(id, "https://techcrunch.com/category/artificial-intelligence/feed/") },
   { id: "verge", name: "The Verge", fetch: (id) => fetchRss(id, "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml") },
   { id: "ars", name: "Ars Technica", fetch: (id) => fetchRss(id, "https://arstechnica.com/ai/feed/") },
-  { id: "venturebeat", name: "VentureBeat", fetch: (id) => fetchRss(id, "https://venturebeat.com/category/ai/feed/") },
+  // VentureBeat put its whole site behind Vercel's bot checkpoint on
+  // 2026-09-03: every automated request — its RSS, and FeedBurner's mirror,
+  // which froze that day — gets a 429 challenge page. Read it through Bing
+  // News instead: headline, ~200-char snippet and the direct venturebeat.com
+  // URL, without touching their site (crawl.ts also skips article-text
+  // fetches for it, see NO_ARTICLE_FETCH).
+  {
+    id: "venturebeat",
+    name: "VentureBeat",
+    fetch: (id) =>
+      fetchRss(id, "https://www.bing.com/news/search?q=site%3aventurebeat.com&format=rss&qft=sortbydate%3d%221%22", {
+        linkParam: "url",
+        requireHost: "venturebeat.com",
+      }),
+  },
   { id: "mit-tr", name: "MIT Tech Review", fetch: (id) => fetchRss(id, "https://www.technologyreview.com/topic/artificial-intelligence/feed") },
   { id: "wired", name: "Wired", fetch: (id) => fetchRss(id, "https://www.wired.com/feed/tag/ai/latest/rss") },
   // The Decoder (the-decoder.com) dropped: blocks Node HTTP clients (works via curl only).
