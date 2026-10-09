@@ -31,6 +31,9 @@ export interface CrawlStats {
 // Sources whose items never get an article-text fetch: X posts and Reddit
 // self-posts already carry their full text; VentureBeat blocks automated
 // requests (Vercel checkpoint, 429), so fetching would only hit their wall.
+// A 속보 older than this at classification time publishes without a push.
+const PUSH_MAX_AGE_MS = 6 * 3_600_000;
+
 const NO_ARTICLE_FETCH = new Set(["x", "reddit", "venturebeat"]);
 
 /** The SPEC.md §5 pipeline: fetch all → dedup+insert → classify new → done. */
@@ -147,7 +150,14 @@ export async function runCrawl(): Promise<CrawlStats> {
         context.unshift({ id: p.id, source_id: p.sourceId, title_orig: p.title, headline_ko: result.headline_ko });
         // 속보 push: fire-and-forget to subscribers. Rare (≤2-3/week), never
         // blocks the crawl, and failures are swallowed inside sendPushToAll.
-        if (result.tier === "속보") {
+        // Only for genuinely new news: items can arrive late (a source back
+        // after an outage, a news-search feed's backlog), and on 2026-10-09
+        // VentureBeat's first Bing crawl pushed a 37-hour-old launch to every
+        // subscriber. The item still publishes; it just doesn't alert.
+        const ageMs = Date.now() - new Date(p.publishedAt).getTime();
+        if (result.tier === "속보" && !(ageMs < PUSH_MAX_AGE_MS)) {
+          console.log(`속보 #${p.id} not pushed: published ${Math.round(ageMs / 3_600_000)}h ago`);
+        } else if (result.tier === "속보") {
           try {
             const { sent, pruned } = await sendPushToAll(breakingPayload(result.headline_ko, p.id));
             console.log(`속보 push #${p.id}: sent=${sent} pruned=${pruned}`);
