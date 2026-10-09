@@ -7,9 +7,10 @@ import { SOURCE_NAMES } from "@/lib/sources";
 import { SITE_URL, TIER_COLOR } from "@/lib/site";
 import { TOPIC_SLUGS, topicLabel, topicKeywords, TOPIC_LABELS, topicTitle } from "@/lib/topics";
 
-// 1h: topic pages are SEO hub pages; freshness within the hour is plenty.
-// ~40 possible slugs so ISR-write volume is bounded and tiny.
-export const revalidate = 3600;
+// 6h: topic pages are SEO hub pages with no search clicks yet; bots re-read
+// all ~55 of them constantly, so hourly meant ~1K ISR writes/day for lists
+// that only need to show the newest items within the day.
+export const revalidate = 21600;
 
 export async function generateStaticParams() {
   return [];

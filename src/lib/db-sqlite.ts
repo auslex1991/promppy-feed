@@ -535,9 +535,9 @@ export async function finishRun(id: number, stats: RunStats): Promise<void> {
   ).run(stats.okSources, stats.failedSources, stats.newItems, stats.classified, JSON.stringify(stats.errors), id);
 }
 
-export async function lastSuccessfulRun(): Promise<{ finished_at: string } | undefined> {
+export async function lastSuccessfulRun(): Promise<{ started_at: string; finished_at: string } | undefined> {
   const d = await getDb();
   return d
-    .prepare(`SELECT finished_at FROM crawl_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1`)
-    .get() as { finished_at: string } | undefined;
+    .prepare(`SELECT started_at, finished_at FROM crawl_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1`)
+    .get() as { started_at: string; finished_at: string } | undefined;
 }

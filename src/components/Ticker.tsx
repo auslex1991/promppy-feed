@@ -11,7 +11,9 @@ const WINDOW_MS = 24 * 3_600_000;
  * horizontally under the filter bar. Hidden when there's nothing above
  * 참고-tier — an empty strip reads as a broken one.
  */
-export default function Ticker({ items, now }: { items: FeedItem[]; now: number }) {
+type TickerItem = Pick<FeedItem, "id" | "tier" | "headlineKo" | "publishedAt">;
+
+export default function Ticker({ items, now }: { items: TickerItem[]; now: number }) {
   const entries = items
     .filter((i) => i.tier !== "참고" && now - new Date(i.publishedAt).getTime() < WINDOW_MS)
     .slice(0, MAX_ENTRIES);

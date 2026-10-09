@@ -537,11 +537,13 @@ export async function finishRun(id: number, stats: RunStats): Promise<void> {
   );
 }
 
-export async function lastSuccessfulRun(): Promise<{ finished_at: string } | undefined> {
+export async function lastSuccessfulRun(): Promise<{ started_at: string; finished_at: string } | undefined> {
   await ensureSchema();
   const res = await getPool().query(
-    `SELECT finished_at FROM crawl_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1`
+    `SELECT started_at, finished_at FROM crawl_runs WHERE finished_at IS NOT NULL ORDER BY id DESC LIMIT 1`
   );
   const row = res.rows[0];
-  return row ? { finished_at: new Date(row.finished_at).toISOString() } : undefined;
+  return row
+    ? { started_at: new Date(row.started_at).toISOString(), finished_at: new Date(row.finished_at).toISOString() }
+    : undefined;
 }

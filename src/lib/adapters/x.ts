@@ -205,27 +205,44 @@ function accountQueries(accounts: string[], sinceTime: number): string[] {
   return chunks.map((c) => `(${c.map((a) => `from:${a}`).join(" OR ")}) since_time:${sinceTime}`);
 }
 
-/** Unix seconds to fetch roster tweets from: just after the previous crawl. */
-async function rosterSinceTime(): Promise<number> {
-  let lastMs = 0;
+/** Start and finish of the previous successful crawl (0 if unknown). */
+async function lastRun(): Promise<{ startedMs: number; finishedMs: number }> {
   try {
     const last = await lastSuccessfulRun();
-    if (last?.finished_at) lastMs = new Date(last.finished_at).getTime();
+    return {
+      startedMs: last?.started_at ? new Date(last.started_at).getTime() : 0,
+      finishedMs: last?.finished_at ? new Date(last.finished_at).getTime() : 0,
+    };
   } catch {
-    // fall through to the max-lookback floor
+    return { startedMs: 0, finishedMs: 0 };
   }
+}
+
+/** Unix seconds to fetch roster tweets from: just after the previous crawl. */
+function rosterSinceTime(lastMs: number): number {
   const floor = Date.now() - MAX_LOOKBACK_MS;
   return Math.floor(Math.max(lastMs - SINCE_BUFFER_MS, floor) / 1000);
 }
+
+const HOUR_MS = 3_600_000;
 
 export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]> {
   const key = process.env.TWITTERAPI_KEY;
   if (!key) return [];
 
-  const [{ org: ORG_ACCOUNTS, people: PEOPLE_ACCOUNTS }, sinceTime] = await Promise.all([
+  const [{ org: ORG_ACCOUNTS, people: PEOPLE_ACCOUNTS }, prev] = await Promise.all([
     loadXRoster(),
-    rosterSinceTime(),
+    lastRun(),
   ]);
+  const sinceTime = rosterSinceTime(prev.finishedMs);
+  // Viral search only on the first crawl of each clock hour. It is a rolling
+  // 6h window, so running it every ~15 min re-bought the same ~20 tweets
+  // ~100×/day — about half the twitterapi.io bill (billed per tweet
+  // returned) for no new coverage. Keyed on the previous run's hour rather
+  // than the minute, so crawl-timing drift can't skip an hour. Compared on the
+  // previous run's START (when it made this same decision), not its finish: a
+  // run starting 10:58 and finishing 11:01 must not make 11:xx look done.
+  const runViral = Math.floor(prev.startedMs / HOUR_MS) !== Math.floor(Date.now() / HOUR_MS);
 
   // Roster passes fetch only what's new since the last crawl. The viral pass
   // still needs a rolling window: it catches tweets that cross the like bar
@@ -233,8 +250,8 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
   const searches = [
     ...accountQueries(ORG_ACCOUNTS, sinceTime).map((q) => search(key, q)),
     ...accountQueries(PEOPLE_ACCOUNTS, sinceTime).map((q) => search(key, q)),
-    search(key, `${VIRAL_QUERY} within_time:6h`),
   ];
+  if (runViral) searches.push(search(key, `${VIRAL_QUERY} within_time:6h`));
   // Slow-burn sweep: a tweet that crosses the viral bar 8+ hours after posting
   // never appears in the 6h window. 4×/day, sweep 24h at a higher bar with
   // pagination — results are Latest-ordered 20/page, so without extra pages an
@@ -243,6 +260,7 @@ export async function fetchX(sourceId: string, maxItems = 50): Promise<RawItem[]
   if (now.getHours() % 6 === 0 && now.getMinutes() < 15) {
     searches.push(search(key, `${SWEEP_QUERY} within_time:24h`, 8));
   }
+  console.log(`x: ${searches.length} searches (viral ${runViral ? "on" : "skipped"})`);
   const results = await Promise.all(searches);
   const orgs = new Set(ORG_ACCOUNTS.map((a) => a.toLowerCase()));
   const roster = new Set(

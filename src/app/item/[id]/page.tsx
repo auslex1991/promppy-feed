@@ -10,24 +10,20 @@ import { withKoreanNames } from "@/lib/brandKo";
 import AdSlot from "@/components/AdSlot";
 import ThreadsShareButton from "@/components/ThreadsShareButton";
 import PushToggle from "@/components/PushToggle";
-import Ticker from "@/components/Ticker";
+import { LatestNews, LiveTicker, NextNews } from "@/components/LiveNews";
 import TrackedLink from "@/components/TrackedLink";
 import { pickRelated } from "@/lib/related";
 import { topicLabel } from "@/lib/topics";
 
-// Item pages are ~85% of traffic and were server-rendered on every hit, each
-// paying for live DB queries (including the 300-item relatedness pool).
-// Published items barely change, so cache them: near-instant pages for the
-// Threads/Google arrivals, less Neon and Vercel compute. Cost: reaction counts
-// and the related/ticker lists can be up to 5 minutes stale on first paint.
-// 6h: a published item's own content (headline/summary/why) NEVER changes —
-// only the secondary ticker/related/reactions age, and this is a deep-linked
-// page, not the live homepage, so hours of staleness there is fine. Every
-// regeneration is BOTH a Neon read AND a Vercel "ISR write" (a metered free-
-// tier resource — too-frequent revalidation on thousands of distinct item
-// URLs nearly exhausted the 200k/mo ISR-write quota, which pauses the project
-// at 100%). Long revalidate = mostly cheap cache hits, rare regeneration.
-export const revalidate = 21600;
+// Item pages are ~85% of traffic and a published item's own content NEVER
+// changes. 30 days: bots read 9k+ distinct item URLs per 12h, and at the old
+// 6h setting nearly every one of those reads re-rendered the page — Vercel
+// showed 20K ISR writes vs 15K reads on /item/[id] in 12h, ~half the bill.
+// What used to go stale is now loaded client-side from the CDN-cached
+// /api/latest (ticker, 다음 뉴스, 최신 뉴스 — see LiveNews.tsx). 관련 뉴스 and
+// reaction counts stay baked in: both age gracefully. A deploy still
+// regenerates everything on first hit, as before.
+export const revalidate = 2592000;
 
 // `revalidate` alone does NOT cache a dynamic segment — verified in prod, every
 // hit was x-vercel-cache MISS. Declaring generateStaticParams puts the route in
@@ -93,11 +89,10 @@ export default async function ItemPage({ params }: Props) {
   const color = TIER_COLOR[item.tier] ?? TIER_COLOR["참고"];
   const sourceName = SOURCE_NAMES[item.sourceId] ?? item.sourceId;
 
-  // One obvious next click: the freshest item that actually matters.
-  const nextItem = candidates.find((c) => c.tier === "속보" || c.tier === "중요") ?? candidates[0];
-  const related = pickRelated(item, candidates, 5).filter((r) => r.id !== nextItem?.id);
-  const shownIds = new Set([nextItem?.id, ...related.map((r) => r.id)]);
-  const latest = candidates.filter((c) => !shownIds.has(c.id)).slice(0, 5);
+  // 관련 뉴스 is baked into the cached HTML (internal links Google can see);
+  // 다음 뉴스 / 최신 뉴스 come live from the client and skip these ids.
+  const related = pickRelated(item, candidates, 5);
+  const relatedIds = related.map((r) => r.id);
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-10 sm:py-16">
@@ -111,7 +106,7 @@ export default async function ItemPage({ params }: Props) {
       {/* Live 속보/중요 strip: most visitors land here from a shared link and
           never see the homepage, so this is their only signal the feed is live. */}
       <div className="mt-4">
-        <Ticker items={candidates.slice(0, 40)} now={Date.now()} />
+        <LiveTicker />
       </div>
 
       <article className="mt-8 rounded-lg border border-[#161b22] bg-white/[0.02] p-6 sm:p-8" style={{ borderLeft: `3px solid ${color}` }}>
@@ -191,28 +186,7 @@ export default async function ItemPage({ params }: Props) {
           interrupting the read, which matters with bounce already at 74%. */}
       <AdSlot slot={process.env.NEXT_PUBLIC_ADSENSE_SLOT_ARTICLE} className="mt-8" />
 
-      {nextItem && (
-        <Link
-          href={`/item/${nextItem.id}`}
-          className="group mt-6 block rounded-lg border border-[#30363d] bg-white/[0.02] p-5 transition-colors hover:border-[#8b949e] hover:bg-white/[0.04]"
-        >
-          <span className="font-mono-ts text-[11px] text-[#8b949e]">다음 뉴스 →</span>
-          <p className="mt-1.5 flex items-start gap-2 text-[16px] font-medium leading-snug text-[#e6edf3]">
-            <span
-              className="mt-0.5 shrink-0 rounded border px-1.5 py-px font-mono-ts text-[11px]"
-              style={{
-                color: TIER_COLOR[nextItem.tier] ?? TIER_COLOR["참고"],
-                borderColor: `${TIER_COLOR[nextItem.tier] ?? TIER_COLOR["참고"]}66`,
-                backgroundColor: `${TIER_COLOR[nextItem.tier] ?? TIER_COLOR["참고"]}22`,
-              }}
-            >
-              {nextItem.tier}
-            </span>
-            <span className="group-hover:underline">{withKoreanNames(nextItem.headlineKo)}</span>
-          </p>
-          <p className="mt-1.5 text-[13px] leading-relaxed text-[#8b949e]">{withKoreanNames(nextItem.whyKo)}</p>
-        </Link>
-      )}
+      <NextNews currentId={item.id} skipIds={relatedIds} />
 
       <section className="mt-8 rounded-lg border border-[#ffb020]/25 bg-[#ffb020]/[0.04] p-5 text-center">
         <p className="text-[15px] text-[#e6edf3]">
@@ -282,26 +256,7 @@ export default async function ItemPage({ params }: Props) {
         </section>
       )}
 
-      {latest.length > 0 && (
-        <section className="mt-8">
-          <h2 className="font-mono-ts text-xs font-semibold text-[#8b949e]">최신 뉴스</h2>
-          <ul className="mt-2 space-y-1.5">
-            {latest.map((l) => (
-              <li key={l.id} className="text-[13px]">
-                <Link href={`/item/${l.id}`} className="text-[#c9d1d9] hover:text-white hover:underline">
-                  <span
-                    className="mr-1.5 font-mono-ts text-[11px]"
-                    style={{ color: TIER_COLOR[l.tier] ?? TIER_COLOR["참고"] }}
-                  >
-                    [{l.tier}]
-                  </span>
-                  {withKoreanNames(l.headlineKo)}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <LatestNews currentId={item.id} skipIds={relatedIds} />
 
     </main>
   );
